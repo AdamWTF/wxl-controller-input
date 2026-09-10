@@ -1,21 +1,30 @@
 #include "runtime/FeatureController.hpp"
 
+#include "bindings/ActionSlots.hpp"
 #include "controller/SdlControllerBackend.hpp"
 #include "game/NativeGameAdapter.hpp"
 #include "wxl/PluginApi.h"
 
+#include <algorithm>
 #include <cmath>
+#include <cctype>
+#include <utility>
 
 namespace wxl::controller {
 
-FeatureController::FeatureController(const WXL_Api &api, Config config, BindingMap bindings)
-    : api_(api), config_(config), bindings_(std::move(bindings)),
+FeatureController::FeatureController(const WXL_Api &api, Config config, BindingStore store,
+                                     std::filesystem::path configPath,
+                                     std::filesystem::path bindingsPath)
+    : api_(api), config_(config), store_(std::move(store)), configPath_(std::move(configPath)),
+      bindingsPath_(std::move(bindingsPath)), bindings_(store_.Effective(std::nullopt)),
       movement_(*this, config.movementDeadzone),
       camera_(*this, CameraPath::MouseFallback, config.cameraDeadzone,
               config.cameraHorizontalSensitivity, config.cameraVerticalSensitivity,
               config.invertCameraY),
       modifiers_(config.triggerActivateThreshold, config.triggerReleaseThreshold),
       bindingController_(*this, bindings_) {
+    for (unsigned i = 0; i < effectiveActionSlots_.size(); ++i)
+        effectiveActionSlots_[i] = i + 1;
 }
 
 FeatureController::~FeatureController() {
@@ -71,9 +80,14 @@ void FeatureController::OnUpdate(float deltaSeconds, std::uint32_t timeMs) noexc
                  device ? device->name.c_str() : "unknown");
     }
     current_ = next;
-    const bool contextActive = config_.enabled && inWorld_ && focused_ && !api_.UiIsOpen();
+    const bool contextActive = config_.enabled && inWorld_ && focused_ && !api_.UiIsOpen() &&
+                               textEntryKnown_ && !textEntryActive_;
     if (!contextActive) {
-        CancelAll(api_.UiIsOpen() ? "overlay takeover" : "inactive gameplay context");
+        const char *reason = api_.UiIsOpen()             ? "overlay takeover"
+                             : textEntryActive_          ? "text entry takeover"
+                             : !textEntryKnown_          ? "text entry context unavailable"
+                                                         : "inactive gameplay context";
+        CancelAll(reason);
         previous_ = next;
         return;
     }
@@ -119,6 +133,10 @@ void FeatureController::OnFocus(bool focused) noexcept {
         CancelAll("focus loss");
 }
 
+bool FeatureController::OverlayOpen() const noexcept {
+    return api_.UiIsOpen() != 0;
+}
+
 void FeatureController::CancelAll(const char *reason) noexcept {
     movement_.Cancel();
     camera_.Cancel();
@@ -131,7 +149,8 @@ void FeatureController::CancelAll(const char *reason) noexcept {
 }
 
 bool FeatureController::BeginBindingCapture() noexcept {
-    if (!config_.enabled || !inWorld_ || !focused_ || !Connected() || api_.UiIsOpen())
+    if (capture_.Active() || !config_.enabled || !inWorld_ || !focused_ || !Connected() ||
+        api_.UiIsOpen() || !textEntryKnown_ || textEntryActive_)
         return false;
     CancelAll("binding capture");
     capture_.Begin();
@@ -145,6 +164,229 @@ void FeatureController::CancelBindingCapture() noexcept {
     capture_.Cancel();
     CancelAll("binding capture cancelled");
     api_.Log(WXL_LOG_INFO, "controller-input", "binding capture stopped");
+}
+
+bool FeatureController::ValidBindingKey(Layer layer, Button button) noexcept {
+    if (button == Button::Menu || button >= Button::Count)
+        return false;
+    return Index(button) <= Index(Button::DPadLeft) || layer == Layer::Base;
+}
+
+bool FeatureController::ValidIdentityPart(const std::string &value) noexcept {
+    if (value.empty() || value.size() > 127)
+        return false;
+    return std::none_of(value.begin(), value.end(), [](unsigned char c) { return c < 0x20; });
+}
+
+RuntimeResult FeatureController::CommitStore(BindingStore candidate, const char *reason) {
+    if (!candidate.SaveAtomic(bindingsPath_))
+        return RuntimeResult::SaveFailed;
+    CancelAll(reason);
+    store_ = std::move(candidate);
+    RebuildBindings();
+    return RuntimeResult::Ok;
+}
+
+RuntimeResult FeatureController::CommitConfig(Config candidate, const char *reason) {
+    if (!SaveConfigAtomic(configPath_, candidate))
+        return RuntimeResult::SaveFailed;
+    CancelAll(reason);
+    config_ = candidate;
+    ApplyConfig();
+    return RuntimeResult::Ok;
+}
+
+void FeatureController::RebuildBindings() {
+    bindings_ = store_.Effective(identity_);
+}
+
+void FeatureController::ApplyConfig() noexcept {
+    movement_.SetDeadzone(config_.movementDeadzone);
+    camera_.Configure(config_.cameraDeadzone, config_.cameraHorizontalSensitivity,
+                      config_.cameraVerticalSensitivity, config_.invertCameraY);
+    modifiers_.Configure(config_.triggerActivateThreshold, config_.triggerReleaseThreshold);
+}
+
+RuntimeResult FeatureController::SetBinding(bool characterScope, Layer layer, Button button,
+                                            const Binding &binding) {
+    if (!ValidBindingKey(layer, button) || !IsValid(binding))
+        return RuntimeResult::InvalidArgument;
+    if (characterScope && !identity_)
+        return RuntimeResult::NoCharacter;
+    if (capture_.Active()) {
+        const auto captured = capture_.Captured();
+        if (!captured || *captured != button)
+            return RuntimeResult::CaptureActive;
+    }
+    BindingStore candidate = store_;
+    if (characterScope)
+        candidate.SetCharacter(*identity_, {layer, button}, binding);
+    else
+        candidate.SetGlobal({layer, button}, binding);
+    return CommitStore(std::move(candidate), "binding changed");
+}
+
+RuntimeResult FeatureController::ResetBinding(bool characterScope, Layer layer,
+                                              Button button) {
+    if (!ValidBindingKey(layer, button))
+        return RuntimeResult::InvalidArgument;
+    if (capture_.Active())
+        return RuntimeResult::CaptureActive;
+    if (characterScope && !identity_)
+        return RuntimeResult::NoCharacter;
+    BindingStore candidate = store_;
+    if (characterScope)
+        candidate.ResetCharacter(*identity_, {layer, button});
+    else
+        candidate.ResetGlobal({layer, button});
+    return CommitStore(std::move(candidate), "binding reset");
+}
+
+RuntimeResult FeatureController::ResetLayer(bool characterScope, Layer layer) {
+    if (capture_.Active())
+        return RuntimeResult::CaptureActive;
+    if (characterScope && !identity_)
+        return RuntimeResult::NoCharacter;
+    BindingStore candidate = store_;
+    candidate.ResetLayer(characterScope ? identity_ : std::nullopt, layer);
+    return CommitStore(std::move(candidate), "layer reset");
+}
+
+RuntimeResult FeatureController::ResetProfile(bool characterScope) {
+    if (capture_.Active())
+        return RuntimeResult::CaptureActive;
+    if (characterScope && !identity_)
+        return RuntimeResult::NoCharacter;
+    BindingStore candidate = store_;
+    if (characterScope)
+        candidate.ResetCharacterAll(*identity_);
+    else
+        candidate.ResetGlobalAll();
+    return CommitStore(std::move(candidate), "profile reset");
+}
+
+RuntimeResult FeatureController::SetCharacter(std::string realm, std::string character) {
+    if (!ValidIdentityPart(realm) || !ValidIdentityPart(character))
+        return RuntimeResult::InvalidArgument;
+    CancelAll("character profile changed");
+    realm_ = std::move(realm);
+    character_ = std::move(character);
+    identity_ = std::to_string(realm_.size()) + ":" + realm_ + character_;
+    RebuildBindings();
+    return RuntimeResult::Ok;
+}
+
+RuntimeResult FeatureController::ClearCharacter() {
+    CancelAll("character profile cleared");
+    identity_.reset();
+    realm_.clear();
+    character_.clear();
+    RebuildBindings();
+    return RuntimeResult::Ok;
+}
+
+RuntimeResult FeatureController::SetEnabled(bool enabled) {
+    Config candidate = config_;
+    candidate.enabled = enabled;
+    return CommitConfig(candidate, enabled ? "controller enabled" : "controller disabled");
+}
+
+RuntimeResult FeatureController::SetOption(const std::string &name, double value, bool booleanValue,
+                                           bool valueIsBoolean) {
+    Config candidate = config_;
+    if (name == "InvertCameraY") {
+        if (!valueIsBoolean)
+            return RuntimeResult::InvalidArgument;
+        candidate.invertCameraY = booleanValue;
+    } else {
+        if (valueIsBoolean || !std::isfinite(value))
+            return RuntimeResult::InvalidArgument;
+        const float number = static_cast<float>(value);
+        if (name == "MovementDeadzone") {
+            if (number < 0 || number > 0.95F)
+                return RuntimeResult::InvalidArgument;
+            candidate.movementDeadzone = number;
+        } else if (name == "CameraDeadzone") {
+            if (number < 0 || number > 0.95F)
+                return RuntimeResult::InvalidArgument;
+            candidate.cameraDeadzone = number;
+        } else if (name == "CameraHorizontalSensitivity") {
+            if (number < 0.05F || number > 10.0F)
+                return RuntimeResult::InvalidArgument;
+            candidate.cameraHorizontalSensitivity = number;
+        } else if (name == "CameraVerticalSensitivity") {
+            if (number < 0.05F || number > 10.0F)
+                return RuntimeResult::InvalidArgument;
+            candidate.cameraVerticalSensitivity = number;
+        } else if (name == "TriggerActivateThreshold") {
+            if (number < 0.01F || number > 1.0F || candidate.triggerReleaseThreshold > number)
+                return RuntimeResult::InvalidArgument;
+            candidate.triggerActivateThreshold = number;
+        } else if (name == "TriggerReleaseThreshold") {
+            if (number < 0 || number > candidate.triggerActivateThreshold)
+                return RuntimeResult::InvalidArgument;
+            candidate.triggerReleaseThreshold = number;
+        } else {
+            return RuntimeResult::Unsupported;
+        }
+    }
+    return CommitConfig(candidate, "controller option changed");
+}
+
+std::optional<double> FeatureController::GetNumericOption(const std::string &name) const noexcept {
+    if (name == "MovementDeadzone")
+        return config_.movementDeadzone;
+    if (name == "CameraDeadzone")
+        return config_.cameraDeadzone;
+    if (name == "CameraHorizontalSensitivity")
+        return config_.cameraHorizontalSensitivity;
+    if (name == "CameraVerticalSensitivity")
+        return config_.cameraVerticalSensitivity;
+    if (name == "TriggerActivateThreshold")
+        return config_.triggerActivateThreshold;
+    if (name == "TriggerReleaseThreshold")
+        return config_.triggerReleaseThreshold;
+    return std::nullopt;
+}
+
+std::optional<bool> FeatureController::GetBooleanOption(const std::string &name) const noexcept {
+    if (name == "InvertCameraY")
+        return config_.invertCameraY;
+    return std::nullopt;
+}
+
+std::optional<ResolvedBinding> FeatureController::GetBinding(bool characterScope, Layer layer,
+                                                            Button button) const {
+    if (!ValidBindingKey(layer, button) && button != Button::Menu)
+        return std::nullopt;
+    if (characterScope && !identity_)
+        return std::nullopt;
+    return store_.Resolve(characterScope ? identity_ : std::nullopt, {layer, button});
+}
+
+void FeatureController::SetTextEntryState(bool known, bool active) noexcept {
+    if (known == textEntryKnown_ && active == textEntryActive_)
+        return;
+    textEntryKnown_ = known;
+    textEntryActive_ = known && active;
+    if (!known || active)
+        CancelAll(!known ? "text entry context unavailable" : "text entry takeover");
+}
+
+void FeatureController::SetEffectiveActionSlots(const std::array<unsigned, 12> &slots, bool valid,
+                                                unsigned page) noexcept {
+    if (valid && std::any_of(slots.begin(), slots.end(),
+                            [](unsigned slot) { return slot < 1 || slot > 120; }))
+        valid = false;
+    if (effectiveActionSlotsValid_ != valid || effectiveActionSlots_ != slots)
+        bindingController_.Cancel();
+    effectiveActionSlots_ = slots;
+    effectiveActionSlotsValid_ = valid;
+    actionPage_ = valid ? page : 0;
+}
+
+std::optional<unsigned> FeatureController::ResolveActionSlot(unsigned logical) const noexcept {
+    return ResolveEffectiveActionSlot(logical, effectiveActionSlots_, effectiveActionSlotsValid_);
 }
 
 bool FeatureController::Connected() const noexcept {
@@ -169,7 +411,13 @@ void FeatureController::End() noexcept {
         input_->EndCamera();
 }
 bool FeatureController::Press(const Binding &binding) noexcept {
-    return input_ && input_->Press(binding);
+    if (!input_)
+        return false;
+    if (const auto *action = std::get_if<ActionSlot>(&binding)) {
+        const auto effective = ResolveActionSlot(action->slot);
+        return effective && input_->Press(ActionSlot{*effective});
+    }
+    return input_->Press(binding);
 }
 void FeatureController::Release(const Binding &binding) noexcept {
     if (input_)

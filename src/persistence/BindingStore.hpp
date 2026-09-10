@@ -7,6 +7,8 @@
 #include <optional>
 #include <string>
 
+#include "profiles/ProfileResolver.hpp"
+
 namespace wxl::controller {
 
 enum class BindingLoadResult {
@@ -25,6 +27,8 @@ class BindingStore {
     bool SaveAtomic(const std::filesystem::path &path) const noexcept;
 
     [[nodiscard]] BindingMap Effective(const std::optional<std::string> &identity) const;
+    [[nodiscard]] std::optional<ResolvedBinding>
+    Resolve(const std::optional<std::string> &identity, BindingKey key) const;
     [[nodiscard]] const BindingMap &Global() const noexcept {
         return global_;
     }

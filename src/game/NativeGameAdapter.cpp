@@ -5,6 +5,7 @@
 #include <optional>
 #include <string>
 #include <type_traits>
+#include <vector>
 
 namespace wxl::controller {
 namespace {
@@ -98,6 +99,18 @@ std::optional<KeyBinding> NamedBinding(const std::string &command) {
     return std::nullopt;
 }
 
+std::optional<std::uint32_t> NamedMovement(const std::string &command) noexcept {
+    if (command == "MOVEFORWARD")
+        return kForward;
+    if (command == "MOVEBACKWARD")
+        return kBackward;
+    if (command == "STRAFELEFT")
+        return kStrafeLeft;
+    if (command == "STRAFERIGHT")
+        return kStrafeRight;
+    return std::nullopt;
+}
+
 std::uint32_t MovementControl(Movement movement) noexcept {
     switch (movement) {
     case Movement::Forward:
@@ -143,37 +156,60 @@ bool NativeGameAdapter::SetMovement(Movement movement, bool down) noexcept {
     return SetNativeControl(MovementControl(movement), down);
 }
 
-bool NativeGameAdapter::SendKey(unsigned virtualKey, bool down) noexcept {
-    if (!RefreshWindow() || virtualKey >= keys_.size() || keys_[virtualKey] == down)
+bool NativeGameAdapter::AcquireKey(unsigned virtualKey) noexcept {
+    if (!RefreshWindow())
         return false;
+    const KeyTransition transition =
+        keys_.Acquire(virtualKey, (GetAsyncKeyState(static_cast<int>(virtualKey)) & 0x8000) != 0);
+    if (transition == KeyTransition::Rejected)
+        return false;
+    if (transition != KeyTransition::SendDown)
+        return true;
     const unsigned scan = MapVirtualKeyA(virtualKey, MAPVK_VK_TO_VSC);
-    LPARAM details = 1L | (static_cast<LPARAM>(scan) << 16);
-    if (!down)
-        details |= static_cast<LPARAM>(3u) << 30;
-    SendMessageA(window_, down ? WM_KEYDOWN : WM_KEYUP, virtualKey, details);
-    keys_[virtualKey] = down;
+    const LPARAM details = 1L | (static_cast<LPARAM>(scan) << 16);
+    SendMessageA(window_, WM_KEYDOWN, virtualKey, details);
     return true;
+}
+
+void NativeGameAdapter::ReleaseKey(unsigned virtualKey) noexcept {
+    const KeyTransition transition =
+        keys_.Release(virtualKey,
+                      (GetAsyncKeyState(static_cast<int>(virtualKey)) & 0x8000) != 0);
+    if (transition == KeyTransition::SendUp && RefreshWindow()) {
+        const unsigned scan = MapVirtualKeyA(virtualKey, MAPVK_VK_TO_VSC);
+        const LPARAM details = 1L | (static_cast<LPARAM>(scan) << 16) |
+                                (static_cast<LPARAM>(3u) << 30);
+        SendMessageA(window_, WM_KEYUP, virtualKey, details);
+    }
 }
 
 bool NativeGameAdapter::PressKeyBinding(const KeyBinding &binding) noexcept {
     const auto key = VirtualKey(binding.key);
-    if (!key)
+    if (!key || !RefreshWindow())
         return false;
+    std::vector<unsigned> acquired;
     for (const auto &name : binding.modifiers) {
         const auto modifier = ModifierKey(name);
-        if (!modifier)
+        if (!modifier || !AcquireKey(*modifier)) {
+            for (auto it = acquired.rbegin(); it != acquired.rend(); ++it)
+                ReleaseKey(*it);
             return false;
-        SendKey(*modifier, true);
+        }
+        acquired.push_back(*modifier);
     }
-    return SendKey(*key, true);
+    if (AcquireKey(*key))
+        return true;
+    for (auto it = acquired.rbegin(); it != acquired.rend(); ++it)
+        ReleaseKey(*it);
+    return false;
 }
 
 void NativeGameAdapter::ReleaseKeyBinding(const KeyBinding &binding) noexcept {
     if (const auto key = VirtualKey(binding.key))
-        SendKey(*key, false);
+        ReleaseKey(*key);
     for (auto it = binding.modifiers.rbegin(); it != binding.modifiers.rend(); ++it)
         if (const auto modifier = ModifierKey(*it))
-            SendKey(*modifier, false);
+            ReleaseKey(*modifier);
 }
 
 bool NativeGameAdapter::Press(const Binding &binding) noexcept {
@@ -190,6 +226,8 @@ bool NativeGameAdapter::Press(const Binding &binding) noexcept {
             } else if constexpr (std::is_same_v<T, WowBinding>) {
                 if (value.command == "JUMP")
                     return SetNativeControl(kJump, true);
+                if (const auto movement = NamedMovement(value.command))
+                    return SetNativeControl(*movement, true);
                 if (const auto key = NamedBinding(value.command))
                     return PressKeyBinding(*key);
                 return false;
@@ -209,6 +247,8 @@ void NativeGameAdapter::Release(const Binding &binding) noexcept {
             if constexpr (std::is_same_v<T, WowBinding>) {
                 if (value.command == "JUMP")
                     SetNativeControl(kJump, false);
+                else if (const auto movement = NamedMovement(value.command))
+                    SetNativeControl(*movement, false);
                 else if (const auto key = NamedBinding(value.command))
                     ReleaseKeyBinding(*key);
             } else if constexpr (std::is_same_v<T, KeyBinding>) {
@@ -219,15 +259,22 @@ void NativeGameAdapter::Release(const Binding &binding) noexcept {
 }
 
 bool NativeGameAdapter::SetRightButton(bool down) noexcept {
-    if (!RefreshWindow() || rightButtonOwned_ == down)
+    const bool physical = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+    if (down && !RefreshWindow())
         return false;
     POINT cursor{};
-    if (!GetCursorPos(&cursor))
+    if (down && !GetCursorPos(&cursor))
+        return false;
+    const KeyTransition transition =
+        down ? rightButton_.Ensure(physical) : rightButton_.End(physical);
+    if (transition == KeyTransition::None)
+        return true;
+    if ((!down && !RefreshWindow()) || (!down && !GetCursorPos(&cursor)))
         return false;
     ScreenToClient(window_, &cursor);
-    SendMessageA(window_, down ? WM_RBUTTONDOWN : WM_RBUTTONUP, down ? MK_RBUTTON : 0,
+    const bool sendDown = transition == KeyTransition::SendDown;
+    SendMessageA(window_, sendDown ? WM_RBUTTONDOWN : WM_RBUTTONUP, sendDown ? MK_RBUTTON : 0,
                  MAKELPARAM(cursor.x, cursor.y));
-    rightButtonOwned_ = down;
     return true;
 }
 
@@ -235,8 +282,6 @@ bool NativeGameAdapter::BeginCamera() noexcept {
     if (!RefreshWindow() || GetForegroundWindow() != window_)
         return false;
     savedCursor_ = GetCursorPos(&savedCursorPosition_) != FALSE;
-    if ((GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0)
-        return true;
     return SetRightButton(true);
 }
 
@@ -244,7 +289,7 @@ bool NativeGameAdapter::MoveCamera(float horizontal, float vertical, float delta
     if (!RefreshWindow() || GetForegroundWindow() != window_)
         return false;
     const bool physical = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
-    if (!rightButtonOwned_ && !physical && !SetRightButton(true))
+    if (!rightButton_.Owned() && !physical && !SetRightButton(true))
         return false;
     const float dt = std::clamp(deltaSeconds, 0.0F, 0.1F);
     cameraRemainderX_ += horizontal * kCameraPixelsPerSecond * dt;
@@ -269,17 +314,14 @@ bool NativeGameAdapter::MoveCamera(float horizontal, float vertical, float delta
     cursor.y = std::clamp(cursor.y, low.y, high.y);
     SetCursorPos(cursor.x, cursor.y);
     ScreenToClient(window_, &cursor);
-    SendMessageA(window_, WM_MOUSEMOVE, (rightButtonOwned_ || physical) ? MK_RBUTTON : 0,
+    SendMessageA(window_, WM_MOUSEMOVE, (rightButton_.Owned() || physical) ? MK_RBUTTON : 0,
                  MAKELPARAM(cursor.x, cursor.y));
     return true;
 }
 
 void NativeGameAdapter::EndCamera() noexcept {
     const bool physical = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
-    if (rightButtonOwned_ && !physical)
-        SetRightButton(false);
-    else
-        rightButtonOwned_ = false;
+    SetRightButton(false);
     cameraRemainderX_ = 0.0F;
     cameraRemainderY_ = 0.0F;
     if (savedCursor_ && !physical && window_ && GetForegroundWindow() == window_)

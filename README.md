@@ -5,7 +5,7 @@
 four LT/RT action layers, hotplugging, persistent profiles, and a versioned addon bridge while
 leaving physical keyboard and mouse input untouched.
 
-## Current status: native build-12340 hardware candidate 0.1.0
+## Current status: pre-addon build-12340 hardware candidate 0.1.0
 
 The repository currently implements the safe first milestones:
 
@@ -18,10 +18,14 @@ The repository currently implements the safe first milestones:
 - release-on-cancel behavior and neutral-state reconciliation;
 - validated configuration defaults and a diagnostic WarcraftXL overlay panel;
 - neutral-gated binding capture and a versioned `wxl.controller-input` native runtime interface;
+- a contract-v1 `_G.WXLControllerInput` Lua table with live transactional mappings, profiles,
+  settings, binding capture, controller state, and presentation metadata;
+- DLL-owned edit-box suppression and truthful stock main-bar/stance paging resolution, with safe
+  logical-slot suppression in ambiguous vehicle and possess contexts;
 - deterministic policy tests and build-only Win32 CI.
 
-The validated global profile is loaded at startup. Per-character records are persisted and tested,
-but remain dormant until WarcraftXL can provide a safe realm/character identity.
+The validated global profile is loaded at startup. The addon can supply realm and character through
+the Lua contract; without it, the DLL remains independently usable with global/default mappings.
 
 The native runtime interface exposes capability flags, connection/context state, raw axes and
 buttons, logical modifiers/layer, binding capture, and game output. Calls are main-thread-only.
@@ -56,8 +60,8 @@ pinned core checkout. CI also verifies the supported integration path by copying
 `shared.cmake` into `wxl-core/extensions/wxl-controller-input` and building only that target with
 `WXL_STRICT_SDK_BOUNDARY=ON`.
 
-This remains a hardware-test candidate. In particular, camera/touch coexistence and every cleanup
-path must pass before release.
+This remains a hardware-test candidate. The Lua smoke suite, paging/text-entry behavior,
+camera/touch coexistence, and every cleanup path must pass in the client before release.
 
 The maintained [addon contract](docs/ADDON_CONTRACT.md) freezes the version-1 identifiers and Lua
 surface. The [implementation status](docs/IMPLEMENTATION_STATUS.md) records what remains before v1.

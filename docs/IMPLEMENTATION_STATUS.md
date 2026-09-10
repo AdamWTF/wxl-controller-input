@@ -14,6 +14,11 @@ Automated completion does not substitute for the required real-hardware matrix.
 - Specified action layout; slots 25-48 and 69-72 remain outside controller ownership.
 - `ActionSlot`, supported `WoWBinding`, `KeyBinding`, and `Unassigned` models.
 - JSON global/character model, validation, inheritance, atomic writes, and default fallback.
+- Live copy-on-write binding/profile/config mutations with rollback on failed persistence.
+- Contract-v1 Lua table, character identity, effective binding sources, options, and capture submit.
+- DLL-owned text-entry observer and stock FrameXML main-bar/stance paging resolver.
+- Safe vehicle/possess degradation: ambiguous logical main-bar actions are suppressed.
+- Ref-counted controller key ownership that does not release physically-held keys.
 - Diagnostics, native state/capture ABI, policy tests, strict Win32 build, and reproducible pins.
 
 ## Implemented but awaiting hardware acceptance
@@ -25,25 +30,17 @@ Automated completion does not substitute for the required real-hardware matrix.
 - Targeting, View/Map, Menu/Escape, arbitrary key chords, and named bindings.
 - Connect-before-start, hotplug, disconnect, reconnect, focus loss, zoning, death, and logout.
 - Xbox/XInput, PlayStation, and AYN Thor/GameNative across the required Windows versions.
+- Lua contract smoke suite, `/reload` recreation, text-entry suppression, ordinary paging and
+  stance/form resolution, plus vehicle/possess suppression.
 
 Observed so far: DualSense discovery and native gameplay dispatch pass; touch coexistence passes
 without `SendInput`. The latest cardinal-direction fix awaits user retest.
 
-## Remaining DLL implementation
+## Remaining DLL work
 
-1. Implement the frozen Lua bridge in `ADDON_CONTRACT.md`.
-2. Keep `BindingStore` alive at runtime and connect mutation, atomic save, live map replacement,
-   global reset, and character reset.
-3. Accept realm/character identity and activate character-profile inheritance.
-4. Expose effective bindings, sources, configuration, and complete device state to Lua.
-5. Implement live enable/option changes with cancellation and neutral reconciliation.
-6. Add identified edit-box/text-entry suppression.
-7. Resolve effective main-bar paging across stance/form, vehicle, possess, and page changes.
-8. Add adapter/lifecycle tests for native calls, RMB ownership, physical-input overlap, output
-   failure, and repeated cancellation.
-9. Update CI artifact naming and stale diagnostic manifest assertions.
-10. Prefer a future generic WarcraftXL game-input interface over exact-build bindings when one is
-    available.
+- Correct any behavior exposed by the pending in-client Lua, paging, text-entry, and hardware tests.
+- Add support for additional client builds only after WarcraftXL offers a generic game-input API;
+  exact-build bindings remain deliberately isolated for this client.
 
 ## Remaining addon implementation
 
@@ -56,9 +53,9 @@ without `SendInput`. The latest cardinal-direction fix awaits user retest.
 
 ## Release blockers
 
-- Lua bridge plus runtime mutation/persistence are implemented and tested.
-- Text-entry suppression is proven.
-- Effective action paging/stance/form/vehicle semantics are truthful.
+- Lua bridge, mutation/persistence, `/reload`, and profile behavior pass in-client smoke tests.
+- Text-entry suppression is proven in the real client.
+- Ordinary paging and stance/form resolution, plus vehicle/possess suppression, are proven.
 - The full device, lifecycle, keyboard/mouse, and touch coexistence matrix passes.
 - No stuck movement, key, camera, or RMB on any cancellation path.
 - CI, documentation, packaging, and manifest describe the functional artifact accurately.

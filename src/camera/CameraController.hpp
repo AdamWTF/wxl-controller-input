@@ -28,6 +28,13 @@ class CameraController {
     }
     void Update(float x, float y) noexcept;
     void Cancel() noexcept;
+    void Configure(float deadzone, float horizontalSensitivity, float verticalSensitivity,
+                   bool invertY) noexcept {
+        deadzone_ = deadzone;
+        horizontal_ = horizontalSensitivity;
+        vertical_ = verticalSensitivity;
+        invertY_ = invertY;
+    }
     [[nodiscard]] bool Active() const noexcept {
         return active_;
     }

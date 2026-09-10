@@ -29,6 +29,13 @@ This file records human validation only; automated test results do not count as 
 - [ ] ActionSlot, WoWBinding, KeyBinding, and Unassigned outputs
 - [ ] Main-bar paging, stance/form, vehicle and possess correctness
 - [ ] Profile persistence and addon capture
+- [ ] `WXLControllerInput` contract-v1 smoke commands return the documented values
+- [ ] `/reload` recreates the Lua table and observer
+- [ ] Chat, macro-name, mail, and other focused edit boxes suppress controller gameplay
+- [ ] Ordinary main-bar pages resolve the same slots the stock buttons display
+- [ ] Stance/form bonus pages resolve the same slots the stock buttons display
+- [ ] Vehicle and possess UI suppress ambiguous logical slots 1-12
+- [ ] Failed/invalid mutations leave the previous live mapping and file intact
 
 Record the exact controller model, connection mode, Windows version, WarcraftXL commit, extension
 commit, DLL SHA-256, camera path, and observed result beside each completed run.

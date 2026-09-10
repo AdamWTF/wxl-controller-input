@@ -27,6 +27,9 @@ class MovementController {
     }
     void Update(float x, float y) noexcept;
     void Cancel() noexcept;
+    void SetDeadzone(float deadzone) noexcept {
+        deadzone_ = deadzone;
+    }
     [[nodiscard]] const std::array<bool, 4> &State() const noexcept {
         return state_;
     }

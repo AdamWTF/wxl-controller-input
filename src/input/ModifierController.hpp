@@ -9,6 +9,10 @@ class ModifierController {
     ModifierController(float activate = 0.50F, float release = 0.40F);
     Layer Update(float leftTrigger, float rightTrigger) noexcept;
     void Cancel() noexcept;
+    void Configure(float activate, float release) noexcept {
+        activate_ = activate;
+        release_ = release;
+    }
     [[nodiscard]] Layer CurrentLayer() const noexcept;
     [[nodiscard]] bool LeftActive() const noexcept {
         return left_;

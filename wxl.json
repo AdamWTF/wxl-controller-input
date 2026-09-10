@@ -8,7 +8,7 @@
     "assets": [],
     "requires": {},
     "conflicts": [],
-    "hooks": []
+    "hooks": ["Lua.ValidateFunctionPointer"]
   },
   "deploy": {
     "mode": "source"
@@ -23,4 +23,3 @@
   "license": "GPL-3.0-or-later",
   "signature": null
 }
-

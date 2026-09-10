@@ -2,6 +2,7 @@
 
 #include "bridge/ControllerBridge.hpp"
 #include "bridge/ControllerInputApi.h"
+#include "bridge/LuaBridge.hpp"
 #include "config/Config.hpp"
 #include "diagnostics/DebugPanel.hpp"
 #include "engine/events/Event.hpp"
@@ -23,6 +24,7 @@ void __cdecl OnUpdate(void *, const void *raw) {
     if (!g_controller || !raw)
         return;
     const auto &update = *static_cast<const events::UpdateArgs *>(raw);
+    LuaBridge::Tick();
     g_controller->OnUpdate(update.dt, update.timeMs);
 }
 void __cdecl OnWorldRenderEnd(void *, const void *) {
@@ -81,13 +83,18 @@ bool LoadExtension(const WXL_Api *api) noexcept {
                      "bindings file rejected; using built-in defaults (result=%u)",
                      static_cast<unsigned>(bindingResult));
         }
-        auto controller =
-            std::make_unique<FeatureController>(*api, config, store.Effective(std::nullopt));
+        auto controller = std::make_unique<FeatureController>(
+            *api, config, std::move(store), directory / "wxl-controller-input.cfg",
+            directory / "wxl-controller-input.bindings.json");
         if (!controller->Initialize())
             return false;
+        if (!LuaBridge::AttachValidator(*api))
+            api->Log(WXL_LOG_WARN, "controller-input",
+                     "Lua bridge unavailable; native controller runtime remains loaded");
         g_controller = std::move(controller);
         g_api = api;
         ControllerBridge::Bind(g_controller.get());
+        LuaBridge::Bind(g_controller.get());
         api->PublishInterface(WXL_CONTROLLER_INPUT_INTERFACE_NAME, WXL_CONTROLLER_INPUT_API_VERSION,
                               ControllerBridge::Interface());
         api->Subscribe(static_cast<std::uint32_t>(events::Event::OnUpdate), &OnUpdate, nullptr);

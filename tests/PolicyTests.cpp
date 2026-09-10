@@ -1,10 +1,13 @@
 #include "bindings/Bindings.hpp"
+#include "bindings/ActionSlots.hpp"
 #include "bridge/BindingCapture.hpp"
 #include "camera/CameraController.hpp"
 #include "config/Config.hpp"
 #include "controller/ControllerSelector.hpp"
 #include "input/Deadzone.hpp"
 #include "input/ModifierController.hpp"
+#include "input/KeyOwnership.hpp"
+#include "input/MouseButtonOwnership.hpp"
 #include "movement/MovementController.hpp"
 #include "persistence/BindingStore.hpp"
 #include "persistence/Json.hpp"
@@ -207,6 +210,49 @@ void TestBindings() {
     CHECK(sink.releases.size() == released);
 }
 
+void TestKeyOwnership() {
+    KeyOwnership keys;
+    CHECK(keys.Acquire(17, false) == KeyTransition::SendDown);
+    CHECK(keys.Acquire(17, false) == KeyTransition::None);
+    CHECK(keys.Owners(17) == 2);
+    CHECK(keys.Release(17, false) == KeyTransition::None);
+    CHECK(keys.Release(17, false) == KeyTransition::SendUp);
+    CHECK(keys.Acquire(17, true) == KeyTransition::None);
+    CHECK(keys.Release(17, false) == KeyTransition::None);
+    CHECK(keys.Acquire(17, false) == KeyTransition::SendDown);
+    CHECK(keys.Release(17, true) == KeyTransition::None);
+    CHECK(keys.Owners(17) == 0);
+}
+
+void TestMouseButtonOwnership() {
+    MouseButtonOwnership button;
+    CHECK(button.Begin(false) == KeyTransition::SendDown);
+    CHECK(button.Ensure(false) == KeyTransition::None);
+    CHECK(button.End(false) == KeyTransition::SendUp);
+    CHECK(button.Begin(true) == KeyTransition::None);
+    CHECK(!button.Owned());
+    CHECK(button.Ensure(false) == KeyTransition::SendDown);
+    CHECK(button.End(true) == KeyTransition::None);
+    CHECK(!button.Owned());
+}
+
+void TestEffectiveActionSlots() {
+    std::array<unsigned, 12> firstPage{};
+    std::array<unsigned, 12> secondPage{};
+    for (unsigned i = 0; i < 12; ++i) {
+        firstPage[i] = i + 1;
+        secondPage[i] = i + 13;
+    }
+    CHECK(!ResolveEffectiveActionSlot(1, firstPage, false));
+    CHECK(ResolveEffectiveActionSlot(1, firstPage, true) == 1u);
+    CHECK(ResolveEffectiveActionSlot(1, secondPage, true) == 13u);
+    CHECK(ResolveEffectiveActionSlot(12, secondPage, true) == 24u);
+    CHECK(ResolveEffectiveActionSlot(49, secondPage, false) == 49u);
+    secondPage[0] = 0;
+    CHECK(!ResolveEffectiveActionSlot(1, secondPage, true));
+    CHECK(!ResolveEffectiveActionSlot(121, firstPage, true));
+}
+
 void TestProfiles() {
     ProfileResolver profiles;
     const BindingKey key{Layer::Base, Button::FaceSouth};
@@ -283,15 +329,36 @@ void TestPersistence() {
 
     BindingStore loaded;
     CHECK(loaded.Load(bindingsPath) == BindingLoadResult::Loaded);
+    CHECK(loaded.Resolve(std::nullopt, south)->source == BindingSource::Global);
+    CHECK(loaded.Resolve("Realm|Character", south)->source == BindingSource::Character);
     CHECK(std::get<ActionSlot>(loaded.Effective(std::nullopt).at(south)).slot == 20);
     CHECK(std::get<ActionSlot>(loaded.Effective("Realm|Character").at(south)).slot == 21);
     CHECK(
         std::get<KeyBinding>(loaded.Effective(std::nullopt).at({Layer::Base, Button::Menu})).key ==
         "ESCAPE");
     loaded.ResetCharacter("Realm|Character", south);
+    CHECK(loaded.Resolve("Realm|Character", south)->source == BindingSource::Global);
     CHECK(std::get<ActionSlot>(loaded.Effective("Realm|Character").at(south)).slot == 20);
     loaded.ResetGlobal(south);
     CHECK(std::get<ActionSlot>(loaded.Effective(std::nullopt).at(south)).slot == 1);
+
+    BindingStore transactionSource = loaded;
+    BindingStore failedCandidate = transactionSource;
+    failedCandidate.SetGlobal(south, ActionSlot{42});
+    CHECK(!failedCandidate.SaveAtomic(root));
+    CHECK(std::get<ActionSlot>(transactionSource.Effective(std::nullopt).at(south)).slot == 1);
+
+    loaded.SetGlobal({Layer::LT, Button::FaceSouth}, ActionSlot{70});
+    loaded.SetGlobal({Layer::RT, Button::FaceSouth}, ActionSlot{71});
+    loaded.ResetLayer(std::nullopt, Layer::LT);
+    CHECK(std::get<ActionSlot>(loaded.Effective(std::nullopt)
+                                   .at({Layer::LT, Button::FaceSouth}))
+              .slot == 49);
+    CHECK(std::get<ActionSlot>(loaded.Effective(std::nullopt)
+                                   .at({Layer::RT, Button::FaceSouth}))
+              .slot == 71);
+    loaded.ResetGlobalAll();
+    CHECK(loaded.Resolve(std::nullopt, south)->source == BindingSource::BuiltIn);
 
     {
         std::ofstream output(bindingsPath, std::ios::trunc);
@@ -323,9 +390,12 @@ int main() {
     TestDeadzone();
     TestMovement();
     TestModifiers();
+    TestKeyOwnership();
+    TestMouseButtonOwnership();
     TestCamera();
     TestBindingCapture();
     TestBindings();
+    TestEffectiveActionSlots();
     TestProfiles();
     TestSelection();
     TestJson();

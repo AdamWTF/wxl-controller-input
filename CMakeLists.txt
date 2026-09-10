@@ -73,6 +73,7 @@ if(WXL_CONTROLLER_BUILD_EXTENSION)
         src/Module.cpp
         src/ExtensionApi.cpp
         src/bridge/ControllerBridge.cpp
+        src/bridge/LuaBridge.cpp
         src/controller/SdlControllerBackend.cpp
         src/diagnostics/DebugPanel.cpp
         src/game/NativeGameAdapter.cpp

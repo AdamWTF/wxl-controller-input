@@ -1,5 +1,6 @@
 #include "diagnostics/DebugPanel.hpp"
 
+#include "bridge/LuaBridge.hpp"
 #include "input/Deadzone.hpp"
 #include "runtime/FeatureController.hpp"
 #include "wxl/PluginApi.h"
@@ -30,6 +31,18 @@ void DrawDebugPanel(const WXL_Api &api, const FeatureController &controller) noe
     std::snprintf(text, sizeof(text), "Context: world=%s focus=%s layer=%u",
                   controller.InWorld() ? "yes" : "no", controller.Focused() ? "yes" : "no",
                   static_cast<unsigned>(controller.CurrentLayer()));
+    api.UiText(text);
+    std::snprintf(text, sizeof(text), "Lua bridge: %s%s%s", LuaBridge::Ready() ? "ready" : "degraded",
+                  LuaBridge::Ready() ? "" : " - ",
+                  LuaBridge::Ready() ? "" : LuaBridge::DegradedReason());
+    api.UiText(text);
+    std::snprintf(text, sizeof(text), "Text entry: known=%s active=%s",
+                  controller.TextEntryKnown() ? "yes" : "no",
+                  controller.TextEntryActive() ? "yes" : "no");
+    api.UiText(text);
+    std::snprintf(text, sizeof(text), "Action context: %s page=%u",
+                  controller.EffectiveActionSlotsValid() ? "resolved" : "suppressed",
+                  controller.ActionPage());
     api.UiText(text);
     const auto &s = controller.CurrentSnapshot();
     std::snprintf(text, sizeof(text), "Left raw: %.3f, %.3f   Right raw: %.3f, %.3f", s.leftX,

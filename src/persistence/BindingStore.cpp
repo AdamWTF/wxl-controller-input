@@ -265,6 +265,24 @@ BindingMap BindingStore::Effective(const std::optional<std::string> &identity) c
     return result;
 }
 
+std::optional<ResolvedBinding>
+BindingStore::Resolve(const std::optional<std::string> &identity, BindingKey key) const {
+    if (identity) {
+        const auto profile = characters_.find(*identity);
+        if (profile != characters_.end()) {
+            const auto binding = profile->second.find(key);
+            if (binding != profile->second.end())
+                return ResolvedBinding{binding->second, BindingSource::Character};
+        }
+    }
+    if (const auto binding = global_.find(key); binding != global_.end())
+        return ResolvedBinding{binding->second, BindingSource::Global};
+    const BindingMap defaults = BuiltInBindings();
+    if (const auto binding = defaults.find(key); binding != defaults.end())
+        return ResolvedBinding{binding->second, BindingSource::BuiltIn};
+    return std::nullopt;
+}
+
 void BindingStore::SetGlobal(BindingKey key, Binding binding) {
     if (key.button != Button::Menu && IsValid(binding))
         global_[key] = std::move(binding);
@@ -293,7 +311,7 @@ void BindingStore::ResetLayer(std::optional<std::string> identity, Layer layer) 
         bindings = &profile->second;
     }
     for (auto it = bindings->begin(); it != bindings->end();) {
-        if (it->first.layer == layer && Index(it->first.button) <= Index(Button::DPadLeft))
+        if (it->first.layer == layer)
             it = bindings->erase(it);
         else
             ++it;

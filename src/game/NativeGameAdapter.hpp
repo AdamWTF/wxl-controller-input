@@ -1,6 +1,8 @@
 #pragma once
 
 #include "bindings/Bindings.hpp"
+#include "input/KeyOwnership.hpp"
+#include "input/MouseButtonOwnership.hpp"
 #include "movement/MovementController.hpp"
 
 #include <Windows.h>
@@ -26,15 +28,16 @@ class NativeGameAdapter final {
   private:
     bool RefreshWindow() noexcept;
     bool SetNativeControl(std::uint32_t control, bool down) noexcept;
-    bool SendKey(unsigned virtualKey, bool down) noexcept;
+    bool AcquireKey(unsigned virtualKey) noexcept;
+    void ReleaseKey(unsigned virtualKey) noexcept;
     bool PressKeyBinding(const KeyBinding &binding) noexcept;
     void ReleaseKeyBinding(const KeyBinding &binding) noexcept;
     bool SetRightButton(bool down) noexcept;
 
     HWND window_{};
-    std::array<bool, 256> keys_{};
+    KeyOwnership keys_;
     std::uint32_t timeMs_{};
-    bool rightButtonOwned_{};
+    MouseButtonOwnership rightButton_;
     bool savedCursor_{};
     POINT savedCursorPosition_{};
     float cameraRemainderX_{};
