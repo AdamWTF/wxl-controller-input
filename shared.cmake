@@ -20,4 +20,9 @@ FetchContent_Declare(SDL3
     GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
     GIT_TAG 8e37db5e797b6167f3a00d697d816a684bd259c7)
 FetchContent_MakeAvailable(SDL3)
+# Freeze the extension-local path now: arguments to a deferred call are otherwise
+# evaluated later in the parent CMakeLists.txt directory.
+cmake_language(EVAL CODE
+    "cmake_language(DEFER CALL target_include_directories wxl-controller-input PRIVATE
+        [[${CMAKE_CURRENT_LIST_DIR}/src]])")
 cmake_language(DEFER CALL target_link_libraries wxl-controller-input PRIVATE SDL3::SDL3-static)
