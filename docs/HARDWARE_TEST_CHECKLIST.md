@@ -21,7 +21,7 @@ This file records human validation only; automated test results do not count as 
 - [ ] Mouse input remains normal
 - [ ] `wxl-touch-input` coexists independent of load order
 
-## Functional candidate (blocked on upstream semantic API)
+## Functional compatibility candidate
 
 - [ ] Cardinal and diagonal movement, including opposite transition ordering
 - [ ] Stationary/moving RMB-style camera, pitch, deadzone, sensitivity, invert Y
@@ -32,4 +32,3 @@ This file records human validation only; automated test results do not count as 
 
 Record the exact controller model, connection mode, Windows version, WarcraftXL commit, extension
 commit, DLL SHA-256, camera path, and observed result beside each completed run.
-

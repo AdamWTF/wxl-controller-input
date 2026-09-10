@@ -58,7 +58,8 @@ bool IsValid(const Binding &binding) noexcept {
                     "BACKSPACE", "DELETE", "DOWN",     "END",    "ENTER", "ESCAPE", "HOME",
                     "INSERT",    "LEFT",   "PAGEDOWN", "PAGEUP", "RIGHT", "SPACE",  "TAB",
                     "UP",        "F1",     "F2",       "F3",     "F4",    "F5",     "F6",
-                    "F7",        "F8",     "F9",       "F10",    "F11",   "F12"};
+                    "F7",        "F8",     "F9",       "F10",    "F11",   "F12",    "NUMLOCK",
+                    "-",         "="};
                 const bool singleKey = value.key.size() == 1 &&
                                        std::isalnum(static_cast<unsigned char>(value.key.front()));
                 return (singleKey || namedKeys.contains(value.key)) &&

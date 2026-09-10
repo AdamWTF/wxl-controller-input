@@ -66,7 +66,7 @@ event tagging behind this interface. Movement and press/release calls should be 
 owner and expose a single `CancelOwner(ownerTag)` cleanup operation. The controller extension can
 then back its existing narrow sinks without changing policy.
 
-Camera fallback is not implemented merely because the native interface is absent. It must be
-evaluated only after the upstream semantic route is accepted or rejected and coexistence testing is
-available.
-
+The current functional candidate uses the explicitly permitted compatibility route while this
+interface is unavailable: WoW-window keyboard messages for movement/actions and foreground-only
+RMB/relative mouse output for camera. This does not change the preferred upstream design and must
+pass the full coexistence matrix before release.

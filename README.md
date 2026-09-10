@@ -5,7 +5,7 @@
 four LT/RT action layers, hotplugging, persistent profiles, and a versioned addon bridge while
 leaving physical keyboard and mouse input untouched.
 
-## Current status: diagnostic foundation 0.1.0
+## Current status: functional compatibility candidate 0.1.0
 
 The repository currently implements the safe first milestones:
 
@@ -24,14 +24,16 @@ The validated global profile is loaded at startup. Per-character records are per
 but remain dormant until WarcraftXL can provide a safe realm/character identity.
 
 The native runtime interface exposes capability flags, connection/context state, raw axes and
-buttons, logical modifiers/layer, and binding-capture control. It intentionally does not advertise
-the game-output capability. Calls are main-thread-only until WarcraftXL defines a broader threading
-contract.
+buttons, logical modifiers/layer, and binding-capture control. It advertises compatibility game
+output. Calls are main-thread-only until WarcraftXL defines a broader threading contract.
 
-Gameplay output is intentionally disabled. The pinned WarcraftXL SDK has no published semantic
-operations for movement, action slots, named bindings, text-entry detection, or RMB-style camera
-input. See [SDK discovery](docs/SDK_DISCOVERY.md) for the evidence and proposed API. No private
-offsets or synthetic mouse fallback have been added.
+The pinned WarcraftXL SDK has no published semantic gameplay-input operations, so this single-DLL
+candidate uses a bounded Windows compatibility adapter. Movement uses stock `W/S/Q/E`; action slots
+1-12, 49-60, and 61-72 resolve to stock `1`-`=`, `Ctrl+1`-`Ctrl+=`, and
+`Shift+1`-`Shift+=` chords; named bindings resolve to their stock 3.3.5a keys; and camera uses an
+RMB/relative-mouse fallback. No private WarcraftXL or WoW offsets are present in this repository.
+Custom in-game key remaps are not yet discovered automatically and should be expressed as explicit
+`KeyBinding` entries in the bindings file.
 
 ## Pins
 
@@ -56,8 +58,9 @@ pinned core checkout. CI also verifies the supported integration path by copying
 `shared.cmake` into `wxl-core/extensions/wxl-controller-input` and building only that target with
 `WXL_STRICT_SDK_BOUNDARY=ON`.
 
-Do not install this diagnostic DLL expecting it to control a character. It is for controller
-enumeration and raw-state hardware validation only.
+This candidate requires real-hardware validation before release. In particular, verify physical
+keyboard/mouse overlap, cursor restoration, focus loss, zoning, action-bar key mappings, and
+`wxl-touch-input` coexistence.
 
 ## License
 
