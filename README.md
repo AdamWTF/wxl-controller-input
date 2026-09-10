@@ -59,6 +59,9 @@ pinned core checkout. CI also verifies the supported integration path by copying
 This remains a hardware-test candidate. In particular, camera/touch coexistence and every cleanup
 path must pass before release.
 
+The maintained [addon contract](docs/ADDON_CONTRACT.md) freezes the version-1 identifiers and Lua
+surface. The [implementation status](docs/IMPLEMENTATION_STATUS.md) records what remains before v1.
+
 ## License
 
 GPL-3.0-or-later. SDL is available under the zlib license.
