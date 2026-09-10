@@ -39,7 +39,9 @@ offsets or synthetic mouse fallback have been added.
 - SDL: release `3.4.10`, commit `8e37db5e797b6167f3a00d697d816a684bd259c7`
 - Client: Win32 build `12340`
 
-SDL is fetched at configure time and linked statically; no `SDL3.dll` is shipped.
+SDL is fetched at configure time and linked statically; no `SDL3.dll` is shipped. Only its
+gamepad/joystick and supporting event functionality is enabled; audio, video, rendering, GPU,
+camera, haptic, sensor, power, dialog, and tray subsystems are disabled.
 
 ## Build tests
 
