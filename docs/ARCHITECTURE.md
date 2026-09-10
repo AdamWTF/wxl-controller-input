@@ -36,18 +36,19 @@ canonical digital down transition while all gameplay policy remains suppressed. 
 publishes the versioned `wxl.controller-input` C table through the core interface registry. The
 bridge reports only implemented capability flags and contains no addon visual policy.
 
-`WindowsInputAdapter` backs the policy sinks without private offsets. It posts owned keyboard state
-only to WoW's window, reference-counts shared chord modifiers, reasserts controller-owned keys after
-a physical key-up, drives camera through synthetic relative motion plus RMB-style window messages,
+`WindowsInputAdapter` backs the policy sinks without private offsets. It injects tagged keyboard
+state only while WoW is foreground, reference-counts shared chord modifiers, reasserts
+controller-owned keys after a physical key-up, drives camera through synthetic relative motion plus
+an injected RMB hold,
 and restores the cursor when camera ownership ends. Physical messages are observed but never marked
 handled. This is a compatibility path; it does not replace the proposed semantic WarcraftXL API.
 
 ## Ownership
 
 - Observed: SDL Gamepad state, WarcraftXL world lifecycle, overlay-open state, application focus.
-- Owned: the SDL Gamepad subsystem and Controller 1 handle; internal logical state; posted
+- Owned: the SDL Gamepad subsystem and Controller 1 handle; internal logical state; tagged
   controller key/RMB state.
-- Synthesized in 0.1.0: WoW-targeted keyboard messages and foreground-only relative mouse motion.
+- Synthesized in 0.1.0: foreground-gated keyboard and relative mouse input.
 - Passed untouched: physical keyboard, mouse, touch, and window messages.
 
 ## Load contract

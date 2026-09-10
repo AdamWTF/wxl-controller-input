@@ -14,7 +14,6 @@
 
 namespace wxl::controller {
 namespace {
-constexpr LPARAM kSyntheticKeyTag = 1L << 25;
 constexpr ULONG_PTR kSyntheticMouseTag = 0x57584C43u;
 constexpr float kCameraPixelsPerSecond = 900.0F;
 
@@ -34,34 +33,17 @@ std::optional<unsigned> VirtualKey(const std::string &name) {
         const char *name;
         unsigned key;
     };
-    static constexpr NamedKey keys[]{{"BACKSPACE", VK_BACK},
-                                     {"DELETE", VK_DELETE},
-                                     {"DOWN", VK_DOWN},
-                                     {"END", VK_END},
-                                     {"ENTER", VK_RETURN},
-                                     {"ESCAPE", VK_ESCAPE},
-                                     {"HOME", VK_HOME},
-                                     {"INSERT", VK_INSERT},
-                                     {"LEFT", VK_LEFT},
-                                     {"NUMLOCK", VK_NUMLOCK},
-                                     {"PAGEDOWN", VK_NEXT},
-                                     {"PAGEUP", VK_PRIOR},
-                                     {"RIGHT", VK_RIGHT},
-                                     {"SPACE", VK_SPACE},
-                                     {"TAB", VK_TAB},
-                                     {"UP", VK_UP},
-                                     {"F1", VK_F1},
-                                     {"F2", VK_F2},
-                                     {"F3", VK_F3},
-                                     {"F4", VK_F4},
-                                     {"F5", VK_F5},
-                                     {"F6", VK_F6},
-                                     {"F7", VK_F7},
-                                     {"F8", VK_F8},
-                                     {"F9", VK_F9},
-                                     {"F10", VK_F10},
-                                     {"F11", VK_F11},
-                                     {"F12", VK_F12}};
+    static constexpr NamedKey keys[]{
+        {"BACKSPACE", VK_BACK},  {"DELETE", VK_DELETE}, {"DOWN", VK_DOWN},
+        {"END", VK_END},         {"ENTER", VK_RETURN},  {"ESCAPE", VK_ESCAPE},
+        {"HOME", VK_HOME},       {"INSERT", VK_INSERT}, {"LEFT", VK_LEFT},
+        {"NUMLOCK", VK_NUMLOCK}, {"PAGEDOWN", VK_NEXT}, {"PAGEUP", VK_PRIOR},
+        {"RIGHT", VK_RIGHT},     {"SPACE", VK_SPACE},   {"TAB", VK_TAB},
+        {"UP", VK_UP},           {"F1", VK_F1},         {"F2", VK_F2},
+        {"F3", VK_F3},           {"F4", VK_F4},         {"F5", VK_F5},
+        {"F6", VK_F6},           {"F7", VK_F7},         {"F8", VK_F8},
+        {"F9", VK_F9},           {"F10", VK_F10},       {"F11", VK_F11},
+        {"F12", VK_F12}};
     for (const auto &entry : keys)
         if (name == entry.name)
             return entry.key;
@@ -94,8 +76,8 @@ unsigned MovementKey(Movement movement) {
 
 bool ExtendedKey(unsigned key) {
     return key == VK_INSERT || key == VK_DELETE || key == VK_HOME || key == VK_END ||
-           key == VK_PRIOR || key == VK_NEXT || key == VK_LEFT || key == VK_RIGHT ||
-           key == VK_UP || key == VK_DOWN || key == VK_NUMLOCK;
+           key == VK_PRIOR || key == VK_NEXT || key == VK_LEFT || key == VK_RIGHT || key == VK_UP ||
+           key == VK_DOWN || key == VK_NUMLOCK;
 }
 } // namespace
 
@@ -110,24 +92,35 @@ bool WindowsInputAdapter::RefreshTarget() noexcept {
     return target_ != nullptr;
 }
 
-bool WindowsInputAdapter::PostKey(unsigned virtualKey, bool down) noexcept {
+bool WindowsInputAdapter::SendKey(unsigned virtualKey, bool down) noexcept {
     if (!RefreshTarget() || virtualKey >= keyReferences_.size())
         return false;
+    if (down && GetForegroundWindow() != target_)
+        return false;
     const UINT scanCode = MapVirtualKeyW(virtualKey, MAPVK_VK_TO_VSC);
-    LPARAM details = 1L | (static_cast<LPARAM>(scanCode) << 16) | kSyntheticKeyTag;
+    if (scanCode == 0)
+        return false;
+    INPUT input{};
+    input.type = INPUT_KEYBOARD;
+    input.ki.wScan = static_cast<WORD>(scanCode);
+    input.ki.dwFlags = KEYEVENTF_SCANCODE;
     if (ExtendedKey(virtualKey))
-        details |= 1L << 24;
+        input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
     if (!down)
-        details |= (1L << 30) | (1L << 31);
-    return PostMessageW(target_, down ? WM_KEYDOWN : WM_KEYUP, virtualKey, details) != FALSE;
+        input.ki.dwFlags |= KEYEVENTF_KEYUP;
+    input.ki.dwExtraInfo = kSyntheticMouseTag;
+    return SendInput(1, &input, sizeof(input)) == 1;
 }
 
 bool WindowsInputAdapter::AcquireKey(unsigned virtualKey) noexcept {
     if (virtualKey >= keyReferences_.size())
         return false;
     auto &references = keyReferences_[virtualKey];
-    if (references == 0 && !PostKey(virtualKey, true))
-        return false;
+    if (references == 0) {
+        physicalKeys_[virtualKey] = (GetAsyncKeyState(static_cast<int>(virtualKey)) & 0x8000) != 0;
+        if (!SendKey(virtualKey, true))
+            return false;
+    }
     if (references != USHRT_MAX)
         ++references;
     return true;
@@ -140,8 +133,11 @@ void WindowsInputAdapter::ReleaseKey(unsigned virtualKey) noexcept {
     if (references == 0)
         return;
     --references;
-    if (references == 0 && (GetAsyncKeyState(static_cast<int>(virtualKey)) & 0x8000) == 0)
-        PostKey(virtualKey, false);
+    if (references == 0) {
+        SendKey(virtualKey, false);
+        if (physicalKeys_[virtualKey])
+            SendKey(virtualKey, true);
+    }
 }
 
 bool WindowsInputAdapter::PressChord(const KeyBinding &binding) noexcept {
@@ -195,21 +191,22 @@ void WindowsInputAdapter::Release(const Binding &binding) noexcept {
         ReleaseChord(*resolved);
 }
 
-bool WindowsInputAdapter::PostRightButton(bool down) noexcept {
+bool WindowsInputAdapter::SendRightButton(bool down) noexcept {
     if (!RefreshTarget())
         return false;
-    POINT cursor{};
-    if (!GetCursorPos(&cursor))
+    if (down && GetForegroundWindow() != target_)
         return false;
-    ScreenToClient(target_, &cursor);
-    const LPARAM position = MAKELPARAM(cursor.x, cursor.y);
-    return PostMessageW(target_, down ? WM_RBUTTONDOWN : WM_RBUTTONUP,
-                        down ? MK_RBUTTON : 0, position) != FALSE;
+    INPUT input{};
+    input.type = INPUT_MOUSE;
+    input.mi.dwFlags = down ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_RIGHTUP;
+    input.mi.dwExtraInfo = kSyntheticMouseTag;
+    return SendInput(1, &input, sizeof(input)) == 1;
 }
 
 bool WindowsInputAdapter::BeginCamera() noexcept {
     if (!RefreshTarget() || GetForegroundWindow() != target_)
         return false;
+    physicalRightButton_ = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
     cameraRequested_ = true;
     POINT cursor{};
     if (GetCursorPos(&cursor)) {
@@ -217,9 +214,9 @@ bool WindowsInputAdapter::BeginCamera() noexcept {
         savedCursorY_ = cursor.y;
         savedCursor_ = true;
     }
-    if ((GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0)
+    if (physicalRightButton_)
         return true;
-    syntheticRightButton_ = PostRightButton(true);
+    syntheticRightButton_ = SendRightButton(true);
     return syntheticRightButton_;
 }
 
@@ -227,8 +224,8 @@ bool WindowsInputAdapter::MoveCamera(float horizontal, float vertical,
                                      float deltaSeconds) noexcept {
     if (!cameraRequested_ || !RefreshTarget() || GetForegroundWindow() != target_)
         return false;
-    if (!syntheticRightButton_ && (GetAsyncKeyState(VK_RBUTTON) & 0x8000) == 0) {
-        syntheticRightButton_ = PostRightButton(true);
+    if (!syntheticRightButton_ && !physicalRightButton_) {
+        syntheticRightButton_ = SendRightButton(true);
         if (!syntheticRightButton_)
             return false;
     }
@@ -248,23 +245,39 @@ bool WindowsInputAdapter::MoveCamera(float horizontal, float vertical,
 
 void WindowsInputAdapter::EndCamera() noexcept {
     cameraRequested_ = false;
-    const bool physicalRightButton = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
-    if (syntheticRightButton_ && !physicalRightButton)
-        PostRightButton(false);
+    if (syntheticRightButton_) {
+        SendRightButton(false);
+        if (physicalRightButton_)
+            SendRightButton(true);
+    }
     syntheticRightButton_ = false;
-    if (savedCursor_ && !physicalRightButton && target_ && GetForegroundWindow() == target_)
+    if (savedCursor_ && !physicalRightButton_ && target_ && GetForegroundWindow() == target_)
         SetCursorPos(savedCursorX_, savedCursorY_);
     savedCursor_ = false;
 }
 
 void WindowsInputAdapter::HandleWindowMessage(std::uint32_t message, std::uintptr_t wparam,
-                                               std::uintptr_t lparam) noexcept {
-    if (message == WM_KEYUP && (static_cast<LPARAM>(lparam) & kSyntheticKeyTag) == 0) {
+                                              std::uintptr_t lparam) noexcept {
+    static_cast<void>(lparam);
+    if (GetMessageExtraInfo() == static_cast<LPARAM>(kSyntheticMouseTag))
+        return;
+    if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN) {
         const unsigned key = static_cast<unsigned>(wparam);
-        if (key < keyReferences_.size() && keyReferences_[key] > 0)
-            PostKey(key, true);
-    } else if (message == WM_RBUTTONUP && cameraRequested_) {
-        syntheticRightButton_ = PostRightButton(true);
+        if (key < physicalKeys_.size())
+            physicalKeys_[key] = true;
+    } else if (message == WM_KEYUP || message == WM_SYSKEYUP) {
+        const unsigned key = static_cast<unsigned>(wparam);
+        if (key < physicalKeys_.size()) {
+            physicalKeys_[key] = false;
+            if (keyReferences_[key] > 0)
+                SendKey(key, true);
+        }
+    } else if (message == WM_RBUTTONDOWN) {
+        physicalRightButton_ = true;
+    } else if (message == WM_RBUTTONUP) {
+        physicalRightButton_ = false;
+        if (cameraRequested_)
+            syntheticRightButton_ = SendRightButton(true);
     }
 }
 
