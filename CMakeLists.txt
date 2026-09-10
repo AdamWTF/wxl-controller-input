@@ -23,11 +23,17 @@ add_library(wxl-controller-policy STATIC
     src/persistence/Json.cpp
     src/profiles/ProfileResolver.cpp)
 target_include_directories(wxl-controller-policy PUBLIC src)
+if(MSVC)
+    target_compile_options(wxl-controller-policy PRIVATE /W4 /WX)
+endif()
 
 if(WXL_CONTROLLER_BUILD_TESTS)
     enable_testing()
     add_executable(wxl-controller-tests tests/PolicyTests.cpp)
     target_link_libraries(wxl-controller-tests PRIVATE wxl-controller-policy)
+    if(MSVC)
+        target_compile_options(wxl-controller-tests PRIVATE /W4 /WX)
+    endif()
     add_test(NAME controller-policy COMMAND wxl-controller-tests)
 endif()
 
@@ -69,6 +75,7 @@ if(WXL_CONTROLLER_BUILD_EXTENSION)
         src/bridge/ControllerBridge.cpp
         src/controller/SdlControllerBackend.cpp
         src/diagnostics/DebugPanel.cpp
+        src/game/NativeGameAdapter.cpp
         src/runtime/FeatureController.cpp)
     target_link_libraries(wxl-controller-input PRIVATE wxl-controller-policy SDL3::SDL3-static)
     target_include_directories(wxl-controller-input PRIVATE
@@ -77,5 +84,8 @@ if(WXL_CONTROLLER_BUILD_EXTENSION)
         "${WXL_CORE_ROOT}/src")
     target_compile_definitions(wxl-controller-input PRIVATE
         WXL_EXTENSION WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
+    if(MSVC)
+        target_compile_options(wxl-controller-input PRIVATE /W4 /WX)
+    endif()
     set_target_properties(wxl-controller-input PROPERTIES PREFIX "" OUTPUT_NAME "wxl-controller-input")
 endif()

@@ -5,7 +5,7 @@
 four LT/RT action layers, hotplugging, persistent profiles, and a versioned addon bridge while
 leaving physical keyboard and mouse input untouched.
 
-## Current status: diagnostic foundation 0.1.0
+## Current status: native build-12340 hardware candidate 0.1.0
 
 The repository currently implements the safe first milestones:
 
@@ -24,14 +24,14 @@ The validated global profile is loaded at startup. Per-character records are per
 but remain dormant until WarcraftXL can provide a safe realm/character identity.
 
 The native runtime interface exposes capability flags, connection/context state, raw axes and
-buttons, logical modifiers/layer, and binding-capture control. It intentionally does not advertise
-the game-output capability. Calls are main-thread-only until WarcraftXL defines a broader threading
-contract.
+buttons, logical modifiers/layer, binding capture, and game output. Calls are main-thread-only.
 
-Gameplay output is intentionally disabled. The pinned WarcraftXL SDK has no published semantic
-operations for movement, action slots, named bindings, text-entry detection, or RMB-style camera
-input. See [SDK discovery](docs/SDK_DISCOVERY.md) for the evidence and proposed API. No private
-offsets or synthetic mouse fallback have been added.
+The hardware candidate ports the proven native movement and action calls from the earlier
+WoW Companion Screen controller. Those build-specific bindings are isolated in one adapter and
+validated against the exact supported `Wow.exe` hash. The adapter uses the client's own input
+state machine for movement, the native action executor for action slots, synchronous window input
+for auxiliary key bindings, and the earlier synchronous RMB/mouse-move camera fallback. It never
+uses `SendInput` and requires no WarcraftXL core change or second DLL.
 
 ## Pins
 
@@ -56,8 +56,8 @@ pinned core checkout. CI also verifies the supported integration path by copying
 `shared.cmake` into `wxl-core/extensions/wxl-controller-input` and building only that target with
 `WXL_STRICT_SDK_BOUNDARY=ON`.
 
-Do not install this diagnostic DLL expecting it to control a character. It is for controller
-enumeration and raw-state hardware validation only.
+This remains a hardware-test candidate. In particular, camera/touch coexistence and every cleanup
+path must pass before release.
 
 ## License
 

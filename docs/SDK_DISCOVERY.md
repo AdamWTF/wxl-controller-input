@@ -66,7 +66,8 @@ event tagging behind this interface. Movement and press/release calls should be 
 owner and expose a single `CancelOwner(ownerTag)` cleanup operation. The controller extension can
 then back its existing narrow sinks without changing policy.
 
-Camera fallback is not implemented merely because the native interface is absent. It must be
-evaluated only after the upstream semantic route is accepted or rejected and coexistence testing is
-available.
+For the current exact-build hardware candidate, the native movement/action implementation and
+synchronous camera fallback were ported from the earlier WoW Companion Screen project into one
+isolated adapter. This avoids a WarcraftXL core rebuild, but the proposed generic interface remains
+the long-term route for supporting additional client builds without extension-owned bindings.
 

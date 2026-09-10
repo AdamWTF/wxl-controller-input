@@ -1,6 +1,7 @@
 #include "runtime/FeatureController.hpp"
 
 #include "controller/SdlControllerBackend.hpp"
+#include "game/NativeGameAdapter.hpp"
 #include "wxl/PluginApi.h"
 
 #include <cmath>
@@ -10,7 +11,7 @@ namespace wxl::controller {
 FeatureController::FeatureController(const WXL_Api &api, Config config, BindingMap bindings)
     : api_(api), config_(config), bindings_(std::move(bindings)),
       movement_(*this, config.movementDeadzone),
-      camera_(*this, CameraPath::Disabled, config.cameraDeadzone,
+      camera_(*this, CameraPath::MouseFallback, config.cameraDeadzone,
               config.cameraHorizontalSensitivity, config.cameraVerticalSensitivity,
               config.invertCameraY),
       modifiers_(config.triggerActivateThreshold, config.triggerReleaseThreshold),
@@ -32,9 +33,9 @@ bool FeatureController::Initialize() noexcept {
         api_.Log(WXL_LOG_ERROR, "controller-input", "SDL gamepad initialization failed");
         return false;
     }
-    api_.Log(WXL_LOG_WARN, "controller-input",
-             "diagnostic mode: WarcraftXL v1.1.247 has no semantic gameplay-input interface; game "
-             "output disabled");
+    input_ = std::make_unique<NativeGameAdapter>();
+    api_.Log(WXL_LOG_INFO, "controller-input",
+             "native build-12340 movement/action output and synchronous camera fallback active");
     if (const auto &active = backend_->Active(); active) {
         api_.Log(WXL_LOG_INFO, "controller-input", "Controller 1 connected: %s",
                  active->name.c_str());
@@ -54,9 +55,12 @@ bool FeatureController::Neutral(const Snapshot &state) const noexcept {
     return true;
 }
 
-void FeatureController::OnUpdate() noexcept {
+void FeatureController::OnUpdate(float deltaSeconds, std::uint32_t timeMs) noexcept {
     if (!backend_)
         return;
+    deltaSeconds_ = deltaSeconds;
+    if (input_)
+        input_->SetTime(timeMs);
     const bool connectedBefore = Connected();
     Snapshot next{};
     if (!backend_->Poll(next))
@@ -147,22 +151,26 @@ const DeviceInfo *FeatureController::CurrentDevice() const noexcept {
     return Connected() ? &*backend_->Active() : nullptr;
 }
 
-// These adapters intentionally do not synthesize input. They are the narrow seams to be backed by
-// a future published WarcraftXL semantic API.
-void FeatureController::SetMovement(Movement, bool) noexcept {
+void FeatureController::SetMovement(Movement movement, bool down) noexcept {
+    if (input_)
+        input_->SetMovement(movement, down);
 }
-bool FeatureController::Begin(CameraPath) noexcept {
-    return false;
+bool FeatureController::Begin(CameraPath path) noexcept {
+    return path == CameraPath::MouseFallback && input_ && input_->BeginCamera();
 }
-bool FeatureController::Move(float, float) noexcept {
-    return false;
+bool FeatureController::Move(float horizontal, float vertical) noexcept {
+    return input_ && input_->MoveCamera(horizontal, vertical, deltaSeconds_);
 }
 void FeatureController::End() noexcept {
+    if (input_)
+        input_->EndCamera();
 }
-bool FeatureController::Press(const Binding &) noexcept {
-    return false;
+bool FeatureController::Press(const Binding &binding) noexcept {
+    return input_ && input_->Press(binding);
 }
-void FeatureController::Release(const Binding &) noexcept {
+void FeatureController::Release(const Binding &binding) noexcept {
+    if (input_)
+        input_->Release(binding);
 }
 
 } // namespace wxl::controller

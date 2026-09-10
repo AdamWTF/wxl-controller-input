@@ -9,9 +9,9 @@ bitset. All calls are bounded, validate enum/string/buffer arguments, return exp
 and never throw across the C ABI. It will be registered through a generic WarcraftXL Lua/native
 bridge once such a bridge exists.
 
-The diagnostic DLL already publishes the C-compatible version 1 interface through WarcraftXL's
-extension interface registry. Its current capability flags cover diagnostics, binding persistence,
-and binding capture; `GAME_OUTPUT` remains clear. `GetState`, `BeginBindingCapture`, and
+The DLL already publishes the C-compatible version 1 interface through WarcraftXL's extension
+interface registry. Its current capability flags cover diagnostics, binding persistence, binding
+capture, and game output. `GetState`, `BeginBindingCapture`, and
 `CancelBindingCapture` are implemented. Consumers must invoke them on the game/main thread. The
 header is `src/bridge/ControllerInputApi.h`.
 

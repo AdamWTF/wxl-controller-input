@@ -36,17 +36,19 @@ canonical digital down transition while all gameplay policy remains suppressed. 
 publishes the versioned `wxl.controller-input` C table through the core interface registry. The
 bridge reports only implemented capability flags and contains no addon visual policy.
 
-The policy sinks currently have no game-side implementation. That is intentional: the pinned SDK
-does not expose the needed semantics. The only live side effects are SDL Gamepad access, core log
-messages, event subscriptions, and diagnostic overlay text. Physical keyboard/mouse messages are
-observed only for `WM_ACTIVATEAPP`; they are never marked handled.
+`NativeGameAdapter` is the sole game-side implementation. It ports the earlier Companion Screen
+controller's validated build-12340 calls: native movement begin/end/commit, native action-slot
+execution, synchronous auxiliary key messages, and synchronous RMB camera messages. Its fixed
+bindings are restricted to the exact supported executable hash and do not leak into policy code.
+No WarcraftXL core source or binary is modified, and no `SendInput` activity is used.
 
 ## Ownership
 
 - Observed: SDL Gamepad state, WarcraftXL world lifecycle, overlay-open state, application focus.
-- Owned: the SDL Gamepad subsystem and Controller 1 handle; internal logical state.
-- Synthesized in 0.1.0: nothing.
-- Passed untouched: physical keyboard, mouse, touch, window messages, and all game actions.
+- Owned: the SDL Gamepad subsystem and Controller 1 handle; internal logical state; native movement
+  states and any synchronous RMB/key state begun by this adapter.
+- Synthesized in 0.1.0: synchronous, WoW-window-only auxiliary keys and RMB camera messages.
+- Passed untouched: physical keyboard, mouse, touch, and unrelated window messages.
 
 ## Load contract
 

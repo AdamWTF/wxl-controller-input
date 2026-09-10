@@ -15,13 +15,14 @@ struct WXL_Api;
 
 namespace wxl::controller {
 class SdlControllerBackend;
+class NativeGameAdapter;
 
 class FeatureController final : private MovementSink, private CameraSink, private BindingSink {
   public:
     FeatureController(const WXL_Api &api, Config config, BindingMap bindings);
     ~FeatureController();
     bool Initialize() noexcept;
-    void OnUpdate() noexcept;
+    void OnUpdate(float deltaSeconds, std::uint32_t timeMs) noexcept;
     void OnWorldEnter() noexcept;
     void OnWorldLeave(const char *reason) noexcept;
     void OnFocus(bool focused) noexcept;
@@ -80,11 +81,13 @@ class FeatureController final : private MovementSink, private CameraSink, privat
     BindingCapture capture_;
     BindingController bindingController_;
     std::unique_ptr<SdlControllerBackend> backend_;
+    std::unique_ptr<NativeGameAdapter> input_;
     Snapshot current_{};
     Snapshot previous_{};
     bool inWorld_{};
     bool focused_{true};
     bool waitingForNeutral_{true};
+    float deltaSeconds_{};
     std::string cancellationReason_{"startup"};
 };
 

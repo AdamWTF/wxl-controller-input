@@ -12,7 +12,7 @@ int __cdecl GetState(WXL_ControllerInputStateV1 *state) {
         return 0;
     const Snapshot &snapshot = g_controller->CurrentSnapshot();
     state->capabilities = WXL_CONTROLLER_CAP_DIAGNOSTICS | WXL_CONTROLLER_CAP_BINDING_PERSISTENCE |
-                          WXL_CONTROLLER_CAP_BINDING_CAPTURE;
+                          WXL_CONTROLLER_CAP_BINDING_CAPTURE | WXL_CONTROLLER_CAP_GAME_OUTPUT;
     state->enabled = g_controller->Settings().enabled ? 1 : 0;
     state->runtimeReady = 1;
     state->connected = g_controller->Connected() ? 1 : 0;

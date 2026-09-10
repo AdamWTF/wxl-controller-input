@@ -55,10 +55,11 @@ bool IsValid(const Binding &binding) noexcept {
             } else if constexpr (std::is_same_v<T, KeyBinding>) {
                 static const std::set<std::string> modifiers{"ALT", "CTRL", "SHIFT"};
                 static const std::set<std::string> namedKeys{
-                    "BACKSPACE", "DELETE", "DOWN",     "END",    "ENTER", "ESCAPE", "HOME",
-                    "INSERT",    "LEFT",   "PAGEDOWN", "PAGEUP", "RIGHT", "SPACE",  "TAB",
-                    "UP",        "F1",     "F2",       "F3",     "F4",    "F5",     "F6",
-                    "F7",        "F8",     "F9",       "F10",    "F11",   "F12"};
+                    "BACKSPACE", "DELETE", "DOWN", "END",      "ENTER",  "ESCAPE",
+                    "HOME",      "INSERT", "LEFT", "PAGEDOWN", "PAGEUP", "RIGHT",
+                    "SPACE",     "TAB",    "UP",   "F1",       "F2",     "F3",
+                    "F4",        "F5",     "F6",   "F7",       "F8",     "F9",
+                    "F10",       "F11",    "F12",  "NUMLOCK",  "-",      "="};
                 const bool singleKey = value.key.size() == 1 &&
                                        std::isalnum(static_cast<unsigned char>(value.key.front()));
                 return (singleKey || namedKeys.contains(value.key)) &&
