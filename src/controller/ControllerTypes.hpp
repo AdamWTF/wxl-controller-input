@@ -7,13 +7,29 @@
 namespace wxl::controller {
 
 enum class Button : std::uint8_t {
-    FaceSouth, FaceEast, FaceWest, FaceNorth,
-    DPadUp, DPadRight, DPadDown, DPadLeft,
-    LeftShoulder, RightShoulder, LeftStick, RightStick, View, Menu,
+    FaceSouth,
+    FaceEast,
+    FaceWest,
+    FaceNorth,
+    DPadUp,
+    DPadRight,
+    DPadDown,
+    DPadLeft,
+    LeftShoulder,
+    RightShoulder,
+    LeftStick,
+    RightStick,
+    View,
+    Menu,
     Count
 };
 
-enum class Layer : std::uint8_t { Base, LT, RT, LTRT };
+enum class Layer : std::uint8_t {
+    Base,
+    LT,
+    RT,
+    LTRT
+};
 
 struct Snapshot {
     float leftX{};
@@ -38,4 +54,3 @@ inline constexpr std::size_t Index(Button button) {
 }
 
 } // namespace wxl::controller
-

@@ -11,16 +11,18 @@ void CameraController::Update(float x, float y) noexcept {
     }
     if (!active_) {
         active_ = sink_.Begin(path_);
-        if (!active_) return;
+        if (!active_)
+            return;
     }
     const float outputY = value.y * vertical_ * (invertY_ ? -1.0F : 1.0F);
-    if (!sink_.Move(value.x * horizontal_, outputY)) Cancel();
+    if (!sink_.Move(value.x * horizontal_, outputY))
+        Cancel();
 }
 
 void CameraController::Cancel() noexcept {
-    if (active_) sink_.End();
+    if (active_)
+        sink_.End();
     active_ = false;
 }
 
 } // namespace wxl::controller
-

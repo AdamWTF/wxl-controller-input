@@ -1,0 +1,6 @@
+BasedOnStyle: Microsoft
+ColumnLimit: 100
+IndentWidth: 4
+SortIncludes: CaseSensitive
+SpaceBeforeParens: ControlStatements
+BreakBeforeBraces: Attach

@@ -7,18 +7,31 @@
 
 namespace wxl::controller {
 
-enum class BindingSource { BuiltIn, Global, Character };
-struct ResolvedBinding { Binding binding; BindingSource source; };
+enum class BindingSource {
+    BuiltIn,
+    Global,
+    Character
+};
+struct ResolvedBinding {
+    Binding binding;
+    BindingSource source;
+};
 
 class ProfileResolver {
-public:
+  public:
     ProfileResolver();
-    BindingMap& Global() noexcept { return global_; }
-    BindingMap& Character() noexcept { return character_; }
-    void SetCharacterIdentity(std::optional<std::string> identity) { identity_ = std::move(identity); }
+    BindingMap &Global() noexcept {
+        return global_;
+    }
+    BindingMap &Character() noexcept {
+        return character_;
+    }
+    void SetCharacterIdentity(std::optional<std::string> identity) {
+        identity_ = std::move(identity);
+    }
     [[nodiscard]] std::optional<ResolvedBinding> Resolve(BindingKey key) const;
 
-private:
+  private:
     BindingMap builtIn_;
     BindingMap global_;
     BindingMap character_;
@@ -26,4 +39,3 @@ private:
 };
 
 } // namespace wxl::controller
-

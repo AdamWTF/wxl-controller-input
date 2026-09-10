@@ -11,30 +11,31 @@ struct SDL_Gamepad;
 namespace wxl::controller {
 
 class SdlControllerBackend {
-public:
+  public:
     using DisconnectHandler = std::function<void()>;
 
     explicit SdlControllerBackend(DisconnectHandler disconnected);
     ~SdlControllerBackend();
-    SdlControllerBackend(const SdlControllerBackend&) = delete;
-    SdlControllerBackend& operator=(const SdlControllerBackend&) = delete;
+    SdlControllerBackend(const SdlControllerBackend &) = delete;
+    SdlControllerBackend &operator=(const SdlControllerBackend &) = delete;
 
     bool Initialize() noexcept;
-    bool Poll(Snapshot& snapshot) noexcept;
+    bool Poll(Snapshot &snapshot) noexcept;
     void Shutdown() noexcept;
-    [[nodiscard]] const std::optional<DeviceInfo>& Active() const noexcept { return selector_.Active(); }
+    [[nodiscard]] const std::optional<DeviceInfo> &Active() const noexcept {
+        return selector_.Active();
+    }
 
-private:
+  private:
     std::vector<DeviceInfo> Enumerate() noexcept;
-    bool Open(const DeviceInfo& device) noexcept;
+    bool Open(const DeviceInfo &device) noexcept;
     void ProcessEvents() noexcept;
-    static DeviceInfo Describe(SDL_Gamepad* gamepad, std::uint32_t id);
+    static DeviceInfo Describe(SDL_Gamepad *gamepad, std::uint32_t id);
 
     DisconnectHandler disconnected_;
     ControllerSelector selector_;
-    SDL_Gamepad* gamepad_{};
+    SDL_Gamepad *gamepad_{};
     bool initialized_{};
 };
 
 } // namespace wxl::controller
-

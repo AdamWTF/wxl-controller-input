@@ -8,16 +8,17 @@
 namespace wxl::controller {
 
 class ControllerSelector {
-public:
-    std::optional<DeviceInfo> SelectInitial(const std::vector<DeviceInfo>& devices);
+  public:
+    std::optional<DeviceInfo> SelectInitial(const std::vector<DeviceInfo> &devices);
     bool Disconnect(std::uint32_t instanceId) noexcept;
-    std::optional<DeviceInfo> Reconnect(const std::vector<DeviceInfo>& devices);
-    [[nodiscard]] const std::optional<DeviceInfo>& Active() const noexcept { return active_; }
+    std::optional<DeviceInfo> Reconnect(const std::vector<DeviceInfo> &devices);
+    [[nodiscard]] const std::optional<DeviceInfo> &Active() const noexcept {
+        return active_;
+    }
 
-private:
+  private:
     std::optional<DeviceInfo> active_;
     std::string controllerOneIdentity_;
 };
 
 } // namespace wxl::controller
-

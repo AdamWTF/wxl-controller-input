@@ -4,6 +4,7 @@ project(wxl-controller-input VERSION 0.1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 option(WXL_CONTROLLER_BUILD_TESTS "Build deterministic policy tests" ON)
 option(WXL_CONTROLLER_BUILD_EXTENSION "Build the WarcraftXL extension" ${WIN32})
@@ -60,4 +61,3 @@ if(WXL_CONTROLLER_BUILD_EXTENSION)
         WXL_EXTENSION WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
     set_target_properties(wxl-controller-input PROPERTIES PREFIX "" OUTPUT_NAME "wxl-controller-input")
 endif()
-

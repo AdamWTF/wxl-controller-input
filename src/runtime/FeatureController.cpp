@@ -7,40 +7,50 @@
 
 namespace wxl::controller {
 
-FeatureController::FeatureController(const WXL_Api& api, Config config)
+FeatureController::FeatureController(const WXL_Api &api, Config config)
     : api_(api), config_(config), movement_(*this, config.movementDeadzone),
       camera_(*this, CameraPath::Disabled, config.cameraDeadzone,
               config.cameraHorizontalSensitivity, config.cameraVerticalSensitivity,
               config.invertCameraY),
       modifiers_(config.triggerActivateThreshold, config.triggerReleaseThreshold),
-      bindingController_(*this, bindings_) {}
+      bindingController_(*this, bindings_) {
+}
 
-FeatureController::~FeatureController() { CancelAll("shutdown"); }
+FeatureController::~FeatureController() {
+    CancelAll("shutdown");
+}
 
 bool FeatureController::Initialize() noexcept {
-    backend_ = std::make_unique<SdlControllerBackend>([this] { CancelAll("controller disconnect"); });
+    backend_ =
+        std::make_unique<SdlControllerBackend>([this] { CancelAll("controller disconnect"); });
     if (!backend_->Initialize()) {
         api_.Log(WXL_LOG_ERROR, "controller-input", "SDL gamepad initialization failed");
         return false;
     }
     api_.Log(WXL_LOG_WARN, "controller-input",
-        "diagnostic mode: WarcraftXL v1.1.247 has no semantic gameplay-input interface; game output disabled");
+             "diagnostic mode: WarcraftXL v1.1.247 has no semantic gameplay-input interface; game "
+             "output disabled");
     return true;
 }
 
-bool FeatureController::Neutral(const Snapshot& state) const noexcept {
+bool FeatureController::Neutral(const Snapshot &state) const noexcept {
     constexpr float epsilon = 0.02F;
     if (std::abs(state.leftX) > epsilon || std::abs(state.leftY) > epsilon ||
         std::abs(state.rightX) > epsilon || std::abs(state.rightY) > epsilon ||
-        state.leftTrigger > epsilon || state.rightTrigger > epsilon) return false;
-    for (bool down : state.buttons) if (down) return false;
+        state.leftTrigger > epsilon || state.rightTrigger > epsilon)
+        return false;
+    for (bool down : state.buttons)
+        if (down)
+            return false;
     return true;
 }
 
 void FeatureController::OnUpdate() noexcept {
-    if (!backend_) return;
+    if (!backend_)
+        return;
     Snapshot next{};
-    if (!backend_->Poll(next)) return;
+    if (!backend_->Poll(next))
+        return;
     current_ = next;
     const bool contextActive = config_.enabled && inWorld_ && focused_ && !api_.UiIsOpen();
     if (!contextActive) {
@@ -49,7 +59,10 @@ void FeatureController::OnUpdate() noexcept {
         return;
     }
     if (waitingForNeutral_) {
-        if (!Neutral(next)) { previous_ = next; return; }
+        if (!Neutral(next)) {
+            previous_ = next;
+            return;
+        }
         waitingForNeutral_ = false;
         previous_ = next;
         return;
@@ -65,11 +78,21 @@ void FeatureController::OnUpdate() noexcept {
     previous_ = next;
 }
 
-void FeatureController::OnWorldEnter() noexcept { inWorld_ = true; waitingForNeutral_ = true; }
-void FeatureController::OnWorldLeave(const char* reason) noexcept { inWorld_ = false; CancelAll(reason); }
-void FeatureController::OnFocus(bool focused) noexcept { focused_ = focused; if (!focused) CancelAll("focus loss"); }
+void FeatureController::OnWorldEnter() noexcept {
+    inWorld_ = true;
+    waitingForNeutral_ = true;
+}
+void FeatureController::OnWorldLeave(const char *reason) noexcept {
+    inWorld_ = false;
+    CancelAll(reason);
+}
+void FeatureController::OnFocus(bool focused) noexcept {
+    focused_ = focused;
+    if (!focused)
+        CancelAll("focus loss");
+}
 
-void FeatureController::CancelAll(const char* reason) noexcept {
+void FeatureController::CancelAll(const char *reason) noexcept {
     movement_.Cancel();
     camera_.Cancel();
     bindingController_.Cancel();
@@ -80,18 +103,29 @@ void FeatureController::CancelAll(const char* reason) noexcept {
     current_ = {};
 }
 
-bool FeatureController::Connected() const noexcept { return backend_ && backend_->Active().has_value(); }
-const DeviceInfo* FeatureController::CurrentDevice() const noexcept {
+bool FeatureController::Connected() const noexcept {
+    return backend_ && backend_->Active().has_value();
+}
+const DeviceInfo *FeatureController::CurrentDevice() const noexcept {
     return Connected() ? &*backend_->Active() : nullptr;
 }
 
 // These adapters intentionally do not synthesize input. They are the narrow seams to be backed by
 // a future published WarcraftXL semantic API.
-void FeatureController::SetMovement(Movement, bool) noexcept {}
-bool FeatureController::Begin(CameraPath) noexcept { return false; }
-bool FeatureController::Move(float, float) noexcept { return false; }
-void FeatureController::End() noexcept {}
-bool FeatureController::Press(const Binding&) noexcept { return false; }
-void FeatureController::Release(const Binding&) noexcept {}
+void FeatureController::SetMovement(Movement, bool) noexcept {
+}
+bool FeatureController::Begin(CameraPath) noexcept {
+    return false;
+}
+bool FeatureController::Move(float, float) noexcept {
+    return false;
+}
+void FeatureController::End() noexcept {
+}
+bool FeatureController::Press(const Binding &) noexcept {
+    return false;
+}
+void FeatureController::Release(const Binding &) noexcept {
+}
 
 } // namespace wxl::controller

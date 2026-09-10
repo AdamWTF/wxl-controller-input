@@ -18,7 +18,6 @@ struct Config {
     float walkRunThreshold{0.50F};
 };
 
-Config LoadConfig(const std::filesystem::path& path) noexcept;
+Config LoadConfig(const std::filesystem::path &path) noexcept;
 
 } // namespace wxl::controller
-
