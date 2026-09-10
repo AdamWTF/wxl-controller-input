@@ -64,7 +64,7 @@ void DrawDebugPanel(const WXL_Api &api, const FeatureController &controller) noe
     }
     std::snprintf(text, sizeof(text), "Recent cancellation: %s", controller.CancellationReason());
     api.UiText(text);
-    api.UiText("Camera path: compatibility RMB + relative mouse");
+    api.UiText("Camera path: disabled; upstream semantic API required");
 }
 
 } // namespace wxl::controller

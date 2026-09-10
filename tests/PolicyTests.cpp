@@ -3,7 +3,6 @@
 #include "camera/CameraController.hpp"
 #include "config/Config.hpp"
 #include "controller/ControllerSelector.hpp"
-#include "game/CompatibilityBindings.hpp"
 #include "input/Deadzone.hpp"
 #include "input/ModifierController.hpp"
 #include "movement/MovementController.hpp"
@@ -206,33 +205,6 @@ void TestBindings() {
     CHECK(sink.releases.size() == released);
 }
 
-void TestCompatibilityBindings() {
-    const auto slot1 = ResolveCompatibilityBinding(ActionSlot{1});
-    const auto slot12 = ResolveCompatibilityBinding(ActionSlot{12});
-    const auto slot49 = ResolveCompatibilityBinding(ActionSlot{49});
-    const auto slot60 = ResolveCompatibilityBinding(ActionSlot{60});
-    const auto slot61 = ResolveCompatibilityBinding(ActionSlot{61});
-    const auto slot72 = ResolveCompatibilityBinding(ActionSlot{72});
-    CHECK((slot1 == KeyBinding{"1", {}}));
-    CHECK((slot12 == KeyBinding{"=", {}}));
-    CHECK((slot49 == KeyBinding{"1", {"CTRL"}}));
-    CHECK((slot60 == KeyBinding{"=", {"CTRL"}}));
-    CHECK((slot61 == KeyBinding{"1", {"SHIFT"}}));
-    CHECK((slot72 == KeyBinding{"=", {"SHIFT"}}));
-    CHECK(!ResolveCompatibilityBinding(ActionSlot{25}));
-    CHECK((ResolveCompatibilityBinding(WowBinding{"TARGETNEARESTENEMY"}) ==
-           KeyBinding{"TAB", {}}));
-    CHECK((ResolveCompatibilityBinding(WowBinding{"TARGETPREVIOUSENEMY"}) ==
-           KeyBinding{"TAB", {"SHIFT"}}));
-    CHECK((ResolveCompatibilityBinding(WowBinding{"TARGETNEARESTFRIEND"}) ==
-           KeyBinding{"TAB", {"CTRL"}}));
-    CHECK((ResolveCompatibilityBinding(WowBinding{"TARGETPREVIOUSFRIEND"}) ==
-           KeyBinding{"TAB", {"CTRL", "SHIFT"}}));
-    CHECK((ResolveCompatibilityBinding(KeyBinding{"F1", {"ALT"}}) ==
-           KeyBinding{"F1", {"ALT"}}));
-    CHECK(!ResolveCompatibilityBinding(Unassigned{}));
-}
-
 void TestProfiles() {
     ProfileResolver profiles;
     const BindingKey key{Layer::Base, Button::FaceSouth};
@@ -352,7 +324,6 @@ int main() {
     TestCamera();
     TestBindingCapture();
     TestBindings();
-    TestCompatibilityBindings();
     TestProfiles();
     TestSelection();
     TestJson();

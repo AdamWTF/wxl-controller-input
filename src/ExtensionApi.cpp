@@ -19,11 +19,9 @@ namespace {
 std::unique_ptr<FeatureController> g_controller;
 const WXL_Api *g_api{};
 
-void __cdecl OnUpdate(void *, const void *raw) {
-    if (!g_controller || !raw)
-        return;
-    const auto &update = *static_cast<const events::UpdateArgs *>(raw);
-    g_controller->OnUpdate(update.dt);
+void __cdecl OnUpdate(void *, const void *) {
+    if (g_controller)
+        g_controller->OnUpdate();
 }
 void __cdecl OnWorldEnter(void *, const void *) {
     if (g_controller)
@@ -37,7 +35,6 @@ void __cdecl OnInput(void *, const void *raw) {
     if (!g_controller || !raw)
         return;
     const auto &input = *static_cast<const events::InputArgs *>(raw);
-    g_controller->OnWindowInput(input.message, input.wparam, input.lparam);
     if (input.message == WM_ACTIVATEAPP)
         g_controller->OnFocus(input.wparam != 0);
 }
