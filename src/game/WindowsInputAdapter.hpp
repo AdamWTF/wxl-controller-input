@@ -31,15 +31,13 @@ class WindowsInputAdapter final {
     void ReleaseKey(unsigned virtualKey) noexcept;
     bool PressChord(const KeyBinding &binding) noexcept;
     void ReleaseChord(const KeyBinding &binding) noexcept;
-    bool SendKey(unsigned virtualKey, bool down) noexcept;
-    bool SendRightButton(bool down) noexcept;
+    bool PostKey(unsigned virtualKey, bool down) noexcept;
+    bool PostRightButton(bool down) noexcept;
 
     HWND target_{};
     std::array<unsigned short, 256> keyReferences_{};
-    std::array<bool, 256> physicalKeys_{};
     bool cameraRequested_{};
     bool syntheticRightButton_{};
-    bool physicalRightButton_{};
     bool savedCursor_{};
     long savedCursorX_{};
     long savedCursorY_{};
