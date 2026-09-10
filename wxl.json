@@ -1,0 +1,26 @@
+{
+  "manifest": 1,
+  "extension": {
+    "id": "wxl-controller-input",
+    "version": "0.1.0",
+    "abi": "1.1",
+    "entry": "wxl-controller-input.dll",
+    "assets": [],
+    "requires": {},
+    "conflicts": [],
+    "hooks": []
+  },
+  "deploy": {
+    "mode": "source"
+  },
+  "listing": {
+    "title": "WarcraftXL Controller Input",
+    "tagline": "Native-feeling controller input for World of Warcraft 3.3.5a.",
+    "description": "store/description.md",
+    "categories": ["input", "controller", "accessibility"],
+    "accent": "#4f8cc9"
+  },
+  "license": "GPL-3.0-or-later",
+  "signature": null
+}
+

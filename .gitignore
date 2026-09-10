@@ -1,0 +1,14 @@
+/build/
+/out/
+/.vs/
+/.vscode/
+*.user
+*.suo
+*.dll
+*.exe
+*.obj
+*.pdb
+wxl-controller-input.cfg
+wxl-controller-input.bindings.json
+WarcraftXL*.log
+

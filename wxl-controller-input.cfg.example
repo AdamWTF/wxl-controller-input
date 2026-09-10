@@ -1,0 +1,15 @@
+Enabled=true
+DebugLogging=false
+
+MovementDeadzone=0.18
+CameraDeadzone=0.15
+CameraHorizontalSensitivity=1.0
+CameraVerticalSensitivity=1.0
+InvertCameraY=false
+
+TriggerActivateThreshold=0.50
+TriggerReleaseThreshold=0.40
+
+EnableAnalogWalk=false
+WalkRunThreshold=0.50
+

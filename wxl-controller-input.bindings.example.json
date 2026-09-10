@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "global": {
+    "bindings": {
+      "Base.FaceSouth": { "type": "ActionSlot", "slot": 1 },
+      "Base.FaceEast": { "type": "ActionSlot", "slot": 2 },
+      "Base.FaceWest": { "type": "ActionSlot", "slot": 3 },
+      "Base.FaceNorth": { "type": "ActionSlot", "slot": 4 },
+      "Base.DPadUp": { "type": "ActionSlot", "slot": 5 },
+      "Base.DPadRight": { "type": "ActionSlot", "slot": 6 },
+      "Base.DPadDown": { "type": "ActionSlot", "slot": 7 },
+      "Base.DPadLeft": { "type": "ActionSlot", "slot": 8 },
+      "LT.FaceSouth": { "type": "ActionSlot", "slot": 49 },
+      "LT.FaceEast": { "type": "ActionSlot", "slot": 50 },
+      "LT.FaceWest": { "type": "ActionSlot", "slot": 51 },
+      "LT.FaceNorth": { "type": "ActionSlot", "slot": 52 },
+      "LT.DPadUp": { "type": "ActionSlot", "slot": 53 },
+      "LT.DPadRight": { "type": "ActionSlot", "slot": 54 },
+      "LT.DPadDown": { "type": "ActionSlot", "slot": 55 },
+      "LT.DPadLeft": { "type": "ActionSlot", "slot": 56 },
+      "RT.FaceSouth": { "type": "ActionSlot", "slot": 61 },
+      "RT.FaceEast": { "type": "ActionSlot", "slot": 62 },
+      "RT.FaceWest": { "type": "ActionSlot", "slot": 63 },
+      "RT.FaceNorth": { "type": "ActionSlot", "slot": 64 },
+      "RT.DPadUp": { "type": "ActionSlot", "slot": 65 },
+      "RT.DPadRight": { "type": "ActionSlot", "slot": 66 },
+      "RT.DPadDown": { "type": "ActionSlot", "slot": 67 },
+      "RT.DPadLeft": { "type": "ActionSlot", "slot": 68 },
+      "LT+RT.FaceSouth": { "type": "ActionSlot", "slot": 9 },
+      "LT+RT.FaceEast": { "type": "ActionSlot", "slot": 10 },
+      "LT+RT.FaceWest": { "type": "ActionSlot", "slot": 11 },
+      "LT+RT.FaceNorth": { "type": "ActionSlot", "slot": 12 },
+      "LT+RT.DPadUp": { "type": "ActionSlot", "slot": 57 },
+      "LT+RT.DPadRight": { "type": "ActionSlot", "slot": 58 },
+      "LT+RT.DPadDown": { "type": "ActionSlot", "slot": 59 },
+      "LT+RT.DPadLeft": { "type": "ActionSlot", "slot": 60 },
+      "LeftShoulder": { "type": "WoWBinding", "command": "TARGETPREVIOUSENEMY" },
+      "RightShoulder": { "type": "WoWBinding", "command": "TARGETNEARESTENEMY" },
+      "LeftStick": { "type": "WoWBinding", "command": "TARGETPREVIOUSFRIEND" },
+      "RightStick": { "type": "WoWBinding", "command": "TARGETNEARESTFRIEND" },
+      "View": { "type": "KeyBinding", "key": "M", "modifiers": [] }
+    }
+  },
+  "characters": {}
+}
+
