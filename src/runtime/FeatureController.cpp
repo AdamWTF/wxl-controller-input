@@ -105,10 +105,13 @@ void FeatureController::OnUpdate(float deltaSeconds, std::uint32_t timeMs) noexc
 void FeatureController::OnWorldEnter() noexcept {
     inWorld_ = true;
     waitingForNeutral_ = true;
+    api_.Log(WXL_LOG_INFO, "controller-input",
+             "world rendering detected; gameplay dispatch enabled");
 }
 void FeatureController::OnWorldLeave(const char *reason) noexcept {
     inWorld_ = false;
     CancelAll(reason);
+    api_.Log(WXL_LOG_INFO, "controller-input", "world leave; gameplay dispatch disabled");
 }
 void FeatureController::OnFocus(bool focused) noexcept {
     focused_ = focused;

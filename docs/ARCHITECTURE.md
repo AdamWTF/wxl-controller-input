@@ -20,9 +20,11 @@ GUID/vendor/product/name fallback). Disconnect never promotes another pad. Recon
 the recorded identity. Two truly identical devices with no serial or distinct path cannot be
 distinguished reliably; the fallback is deterministic but this remains a documented limitation.
 
-`FeatureController` owns all cancellation. Focus loss, world leave, overlay takeover, disconnect,
-disable, and shutdown release every policy-owned state. After cancellation, input is gated until a
-fully neutral physical snapshot has been observed, preventing held controls from replaying.
+`FeatureController` owns all cancellation. Gameplay activates only after the first completed world
+render, matching the lifecycle proven by the earlier controller. Focus loss, world leave, overlay
+takeover, disconnect, disable, and shutdown release every policy-owned state. After cancellation,
+input is gated until a fully neutral physical snapshot has been observed, preventing held controls
+from replaying.
 
 `BindingStore` parses schema version 1 into temporary maps and commits them only after the complete
 document is valid. Unknown future fields and malformed individual binding entries are ignored;

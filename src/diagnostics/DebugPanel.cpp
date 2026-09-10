@@ -20,7 +20,7 @@ constexpr const char *ButtonName(Button button) {
 
 void DrawDebugPanel(const WXL_Api &api, const FeatureController &controller) noexcept {
     char text[192]{};
-    api.UiText("Status: diagnostic input only (game output unavailable)");
+    api.UiText("Status: native build-12340 game output candidate");
     api.UiText(controller.Connected() ? "Controller 1: connected" : "Controller 1: unavailable");
     if (const auto *device = controller.CurrentDevice()) {
         std::snprintf(text, sizeof(text), "Device: %s (%s)", device->name.c_str(),

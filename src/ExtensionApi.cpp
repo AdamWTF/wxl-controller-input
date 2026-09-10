@@ -25,8 +25,8 @@ void __cdecl OnUpdate(void *, const void *raw) {
     const auto &update = *static_cast<const events::UpdateArgs *>(raw);
     g_controller->OnUpdate(update.dt, update.timeMs);
 }
-void __cdecl OnWorldEnter(void *, const void *) {
-    if (g_controller)
+void __cdecl OnWorldRenderEnd(void *, const void *) {
+    if (g_controller && !g_controller->InWorld())
         g_controller->OnWorldEnter();
 }
 void __cdecl OnWorldLeave(void *, const void *) {
@@ -91,8 +91,8 @@ bool LoadExtension(const WXL_Api *api) noexcept {
         api->PublishInterface(WXL_CONTROLLER_INPUT_INTERFACE_NAME, WXL_CONTROLLER_INPUT_API_VERSION,
                               ControllerBridge::Interface());
         api->Subscribe(static_cast<std::uint32_t>(events::Event::OnUpdate), &OnUpdate, nullptr);
-        api->Subscribe(static_cast<std::uint32_t>(events::Event::OnWorldEnter), &OnWorldEnter,
-                       nullptr);
+        api->Subscribe(static_cast<std::uint32_t>(events::Event::OnWorldRenderEnd),
+                       &OnWorldRenderEnd, nullptr);
         api->Subscribe(static_cast<std::uint32_t>(events::Event::OnWorldLeave), &OnWorldLeave,
                        nullptr);
         api->Subscribe(static_cast<std::uint32_t>(events::Event::OnInput), &OnInput, nullptr);
