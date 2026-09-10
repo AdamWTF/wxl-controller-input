@@ -18,11 +18,14 @@ FeatureController::FeatureController(const WXL_Api &api, Config config)
 
 FeatureController::~FeatureController() {
     CancelAll("shutdown");
+    api_.Log(WXL_LOG_INFO, "controller-input", "shutdown");
 }
 
 bool FeatureController::Initialize() noexcept {
-    backend_ =
-        std::make_unique<SdlControllerBackend>([this] { CancelAll("controller disconnect"); });
+    backend_ = std::make_unique<SdlControllerBackend>([this] {
+        CancelAll("controller disconnect");
+        api_.Log(WXL_LOG_INFO, "controller-input", "Controller 1 disconnected");
+    });
     if (!backend_->Initialize()) {
         api_.Log(WXL_LOG_ERROR, "controller-input", "SDL gamepad initialization failed");
         return false;
@@ -30,6 +33,10 @@ bool FeatureController::Initialize() noexcept {
     api_.Log(WXL_LOG_WARN, "controller-input",
              "diagnostic mode: WarcraftXL v1.1.247 has no semantic gameplay-input interface; game "
              "output disabled");
+    if (const auto &active = backend_->Active(); active) {
+        api_.Log(WXL_LOG_INFO, "controller-input", "Controller 1 connected: %s",
+                 active->name.c_str());
+    }
     return true;
 }
 
@@ -48,9 +55,15 @@ bool FeatureController::Neutral(const Snapshot &state) const noexcept {
 void FeatureController::OnUpdate() noexcept {
     if (!backend_)
         return;
+    const bool connectedBefore = Connected();
     Snapshot next{};
     if (!backend_->Poll(next))
         return;
+    if (!connectedBefore && Connected()) {
+        const auto *device = CurrentDevice();
+        api_.Log(WXL_LOG_INFO, "controller-input", "Controller 1 reconnected: %s",
+                 device ? device->name.c_str() : "unknown");
+    }
     current_ = next;
     const bool contextActive = config_.enabled && inWorld_ && focused_ && !api_.UiIsOpen();
     if (!contextActive) {
