@@ -3,13 +3,22 @@
 #include <cmath>
 
 namespace wxl::controller {
+namespace {
+constexpr float kDirectionPressThreshold = 0.35F;
+constexpr float kDirectionReleaseThreshold = 0.25F;
+
+bool DirectionActive(float value, bool active) noexcept {
+    return active ? value > kDirectionReleaseThreshold : value >= kDirectionPressThreshold;
+}
+} // namespace
 
 void MovementController::Update(float x, float y) noexcept {
     const Vec2 value = ApplyRadialDeadzone(x, y, deadzone_);
-    constexpr float directionThreshold = 0.001F;
     std::array<bool, 4> next{
-        value.y<-directionThreshold, value.y> directionThreshold,
-        value.x<-directionThreshold, value.x> directionThreshold,
+        DirectionActive(-value.y, state_[0]),
+        DirectionActive(value.y, state_[1]),
+        DirectionActive(-value.x, state_[2]),
+        DirectionActive(value.x, state_[3]),
     };
 
     // All releases precede all presses, making opposite-direction transitions deterministic.

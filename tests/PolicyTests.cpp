@@ -78,6 +78,8 @@ void TestMovement() {
     MovementController movement(sink);
     movement.Update(0, -1);
     CHECK((sink.events == std::vector<std::pair<Movement, bool>>{{Movement::Forward, true}}));
+    movement.Update(0.08F, -1);
+    CHECK((movement.State() == std::array<bool, 4>{true, false, false, false}));
     movement.Update(0, 1);
     CHECK((sink.events[1] == std::pair{Movement::Forward, false}));
     CHECK((sink.events[2] == std::pair{Movement::Backward, true}));

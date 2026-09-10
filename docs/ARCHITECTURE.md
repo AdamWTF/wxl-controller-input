@@ -26,6 +26,10 @@ takeover, disconnect, disable, and shutdown release every policy-owned state. Af
 input is gated until a fully neutral physical snapshot has been observed, preventing held controls
 from replaying.
 
+After radial deadzone processing, each movement axis uses the earlier controller's 0.35 press and
+0.25 release thresholds. This rejects small orthogonal stick noise without losing intentional
+diagonals and prevents threshold chatter.
+
 `BindingStore` parses schema version 1 into temporary maps and commits them only after the complete
 document is valid. Unknown future fields and malformed individual binding entries are ignored;
 malformed JSON or an unsupported schema leaves the prior valid state intact. Global and character
