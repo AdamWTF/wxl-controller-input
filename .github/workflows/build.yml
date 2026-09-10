@@ -70,7 +70,7 @@ jobs:
           if ($m.extension.entry -ne "$env:EXT_NAME.dll") { throw 'wrong entry DLL' }
           if ($m.extension.hooks.Count -ne 0) { throw 'diagnostic build must declare no hooks' }
 
-      - name: Verify PE and exports
+      - name: Verify PE, exports, and static runtime
         shell: pwsh
         run: |
           $dll = "core/build/Release/$env:EXT_NAME.dll"
@@ -80,6 +80,13 @@ jobs:
           $exports = dumpbin /exports $dll | Out-String
           if ($exports -notmatch '\bWXL_Query\b') { throw 'missing WXL_Query export' }
           if ($exports -notmatch '\bWXL_Load\b') { throw 'missing WXL_Load export' }
+          $dependencies = dumpbin /dependents $dll | Out-String
+          if ($dependencies -match '(?im)^\s*SDL3\.dll\s*$') {
+            throw 'SDL3 must be linked statically'
+          }
+          if ($dependencies -match '(?im)^\s*(VCRUNTIME|MSVCP|ucrtbase)[^\s]*\.dll\s*$') {
+            throw 'the extension must use the static C/C++ runtime'
+          }
 
       - name: Stage intended artifact
         shell: pwsh
