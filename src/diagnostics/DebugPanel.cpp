@@ -5,8 +5,18 @@
 #include "wxl/PluginApi.h"
 
 #include <cstdio>
+#include <string>
 
 namespace wxl::controller {
+namespace {
+constexpr const char *ButtonName(Button button) {
+    constexpr const char *names[]{"FaceSouth",    "FaceEast",      "FaceWest",  "FaceNorth",
+                                  "DPadUp",       "DPadRight",     "DPadDown",  "DPadLeft",
+                                  "LeftShoulder", "RightShoulder", "LeftStick", "RightStick",
+                                  "View",         "Menu"};
+    return names[Index(button)];
+}
+} // namespace
 
 void DrawDebugPanel(const WXL_Api &api, const FeatureController &controller) noexcept {
     char text[192]{};
@@ -33,6 +43,16 @@ void DrawDebugPanel(const WXL_Api &api, const FeatureController &controller) noe
     api.UiText(text);
     std::snprintf(text, sizeof(text), "Triggers: LT %.3f  RT %.3f", s.leftTrigger, s.rightTrigger);
     api.UiText(text);
+    std::string pressed = "Pressed:";
+    for (std::size_t i = 0; i < s.buttons.size(); ++i) {
+        if (s.buttons[i]) {
+            pressed.push_back(' ');
+            pressed += ButtonName(static_cast<Button>(i));
+        }
+    }
+    if (pressed == "Pressed:")
+        pressed += " none";
+    api.UiText(pressed.c_str());
     std::snprintf(text, sizeof(text), "Recent cancellation: %s", controller.CancellationReason());
     api.UiText(text);
     api.UiText("Camera path: disabled; upstream semantic API required");

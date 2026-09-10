@@ -3,6 +3,7 @@
 #include "config/Config.hpp"
 #include "diagnostics/DebugPanel.hpp"
 #include "engine/events/Event.hpp"
+#include "persistence/BindingStore.hpp"
 #include "runtime/FeatureController.hpp"
 #include "wxl/PluginApi.h"
 
@@ -64,8 +65,20 @@ bool LoadExtension(const WXL_Api *api) noexcept {
     if (!ValidApi(api))
         return false;
     try {
-        Config config = LoadConfig(ModuleDirectory() / "wxl-controller-input.cfg");
-        auto controller = std::make_unique<FeatureController>(*api, config);
+        const auto directory = ModuleDirectory();
+        Config config = LoadConfig(directory / "wxl-controller-input.cfg");
+        BindingStore store;
+        const BindingLoadResult bindingResult =
+            store.Load(directory / "wxl-controller-input.bindings.json");
+        if (bindingResult == BindingLoadResult::Invalid ||
+            bindingResult == BindingLoadResult::UnsupportedVersion ||
+            bindingResult == BindingLoadResult::IoError) {
+            api->Log(WXL_LOG_WARN, "controller-input",
+                     "bindings file rejected; using built-in defaults (result=%u)",
+                     static_cast<unsigned>(bindingResult));
+        }
+        auto controller =
+            std::make_unique<FeatureController>(*api, config, store.Effective(std::nullopt));
         if (!controller->Initialize())
             return false;
         g_controller = std::move(controller);

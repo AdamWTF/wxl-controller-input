@@ -13,9 +13,14 @@ The repository currently implements the safe first milestones:
   and same-identity reconnect;
 - radial stick deadzones, deterministic eight-direction movement policy, trigger hysteresis,
   press-start layer ownership, default mappings, profile resolution, and camera policy;
+- versioned JSON global/character binding profiles, reset-to-inherited behavior, strict binding
+  validation, and atomic configuration/profile replacement;
 - release-on-cancel behavior and neutral-state reconciliation;
 - validated configuration defaults and a diagnostic WarcraftXL overlay panel;
 - deterministic policy tests and build-only Win32 CI.
+
+The validated global profile is loaded at startup. Per-character records are persisted and tested,
+but remain dormant until WarcraftXL can provide a safe realm/character identity.
 
 Gameplay output is intentionally disabled. The pinned WarcraftXL SDK has no published semantic
 operations for movement, action slots, named bindings, text-entry detection, or RMB-style camera
@@ -49,4 +54,3 @@ enumeration and raw-state hardware validation only.
 ## License
 
 GPL-3.0-or-later. SDL is available under the zlib license.
-

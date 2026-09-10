@@ -17,6 +17,9 @@ add_library(wxl-controller-policy STATIC
     src/input/Deadzone.cpp
     src/input/ModifierController.cpp
     src/movement/MovementController.cpp
+    src/persistence/AtomicFile.cpp
+    src/persistence/BindingStore.cpp
+    src/persistence/Json.cpp
     src/profiles/ProfileResolver.cpp)
 target_include_directories(wxl-controller-policy PUBLIC src)
 

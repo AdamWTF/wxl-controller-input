@@ -19,5 +19,6 @@ struct Config {
 };
 
 Config LoadConfig(const std::filesystem::path &path) noexcept;
+bool SaveConfigAtomic(const std::filesystem::path &path, const Config &config) noexcept;
 
 } // namespace wxl::controller

@@ -17,7 +17,7 @@ class SdlControllerBackend;
 
 class FeatureController final : private MovementSink, private CameraSink, private BindingSink {
   public:
-    FeatureController(const WXL_Api &api, Config config);
+    FeatureController(const WXL_Api &api, Config config, BindingMap bindings);
     ~FeatureController();
     bool Initialize() noexcept;
     void OnUpdate() noexcept;
@@ -58,7 +58,7 @@ class FeatureController final : private MovementSink, private CameraSink, privat
 
     const WXL_Api &api_;
     Config config_;
-    BindingMap bindings_{BuiltInBindings()};
+    BindingMap bindings_;
     MovementController movement_;
     CameraController camera_;
     ModifierController modifiers_;

@@ -1,8 +1,10 @@
 #include "config/Config.hpp"
+#include "persistence/AtomicFile.hpp"
 
 #include <algorithm>
 #include <charconv>
 #include <fstream>
+#include <sstream>
 #include <string>
 
 namespace wxl::controller {
@@ -26,6 +28,11 @@ bool ParseFloat(const std::string &value, float &output) {
         return false;
     output = parsed;
     return true;
+}
+std::string FormatFloat(float value) {
+    char buffer[64]{};
+    const auto result = std::to_chars(buffer, buffer + sizeof(buffer), value);
+    return result.ec == std::errc{} ? std::string(buffer, result.ptr) : "0";
 }
 } // namespace
 
@@ -78,6 +85,31 @@ Config LoadConfig(const std::filesystem::path &path) noexcept {
         std::clamp(config.triggerReleaseThreshold, 0.0F, config.triggerActivateThreshold);
     config.walkRunThreshold = std::clamp(config.walkRunThreshold, config.movementDeadzone, 1.0F);
     return config;
+}
+
+bool SaveConfigAtomic(const std::filesystem::path &path, const Config &config) noexcept {
+    try {
+        std::ostringstream output;
+        output << std::boolalpha;
+        output << "Enabled=" << config.enabled << '\n';
+        output << "DebugLogging=" << config.debugLogging << "\n\n";
+        output << "MovementDeadzone=" << FormatFloat(config.movementDeadzone) << '\n';
+        output << "CameraDeadzone=" << FormatFloat(config.cameraDeadzone) << '\n';
+        output << "CameraHorizontalSensitivity=" << FormatFloat(config.cameraHorizontalSensitivity)
+               << '\n';
+        output << "CameraVerticalSensitivity=" << FormatFloat(config.cameraVerticalSensitivity)
+               << '\n';
+        output << "InvertCameraY=" << config.invertCameraY << "\n\n";
+        output << "TriggerActivateThreshold=" << FormatFloat(config.triggerActivateThreshold)
+               << '\n';
+        output << "TriggerReleaseThreshold=" << FormatFloat(config.triggerReleaseThreshold)
+               << "\n\n";
+        output << "EnableAnalogWalk=" << config.enableAnalogWalk << '\n';
+        output << "WalkRunThreshold=" << FormatFloat(config.walkRunThreshold) << '\n';
+        return WriteTextFileAtomically(path, output.str());
+    } catch (...) {
+        return false;
+    }
 }
 
 } // namespace wxl::controller

@@ -24,6 +24,13 @@ distinguished reliably; the fallback is deterministic but this remains a documen
 disable, and shutdown release every policy-owned state. After cancellation, input is gated until a
 fully neutral physical snapshot has been observed, preventing held controls from replaying.
 
+`BindingStore` parses schema version 1 into temporary maps and commits them only after the complete
+document is valid. Unknown future fields and malformed individual binding entries are ignored;
+malformed JSON or an unsupported schema leaves the prior valid state intact. Global and character
+overrides remain sparse and resolve over built-in defaults. Configuration and binding writes use a
+same-directory temporary file followed by Windows write-through replacement, so a failed save does
+not truncate the previous file.
+
 The policy sinks currently have no game-side implementation. That is intentional: the pinned SDK
 does not expose the needed semantics. The only live side effects are SDL Gamepad access, core log
 messages, event subscriptions, and diagnostic overlay text. Physical keyboard/mouse messages are
@@ -41,4 +48,3 @@ observed only for `WM_ACTIVATEAPP`; they are never marked handled.
 `WXL_Query` returns static metadata and performs no I/O, logging, enumeration, allocation, callback
 registration, or SDL initialization. `WXL_Load` requires the exact ABI version and table size and
 validates every function pointer before config or SDL initialization.
-

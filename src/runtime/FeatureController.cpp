@@ -7,8 +7,9 @@
 
 namespace wxl::controller {
 
-FeatureController::FeatureController(const WXL_Api &api, Config config)
-    : api_(api), config_(config), movement_(*this, config.movementDeadzone),
+FeatureController::FeatureController(const WXL_Api &api, Config config, BindingMap bindings)
+    : api_(api), config_(config), bindings_(std::move(bindings)),
+      movement_(*this, config.movementDeadzone),
       camera_(*this, CameraPath::Disabled, config.cameraDeadzone,
               config.cameraHorizontalSensitivity, config.cameraVerticalSensitivity,
               config.invertCameraY),
@@ -24,6 +25,7 @@ FeatureController::~FeatureController() {
 bool FeatureController::Initialize() noexcept {
     backend_ = std::make_unique<SdlControllerBackend>([this] {
         CancelAll("controller disconnect");
+        current_ = {};
         api_.Log(WXL_LOG_INFO, "controller-input", "Controller 1 disconnected");
     });
     if (!backend_->Initialize()) {
@@ -113,7 +115,6 @@ void FeatureController::CancelAll(const char *reason) noexcept {
     waitingForNeutral_ = true;
     previous_ = {};
     cancellationReason_ = reason ? reason : "unknown";
-    current_ = {};
 }
 
 bool FeatureController::Connected() const noexcept {
