@@ -1,0 +1,95 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  EXT_NAME: wxl-controller-input
+  CORE_REPO: WarcraftXL/wxl-core
+  CORE_REF: bc2fefd93fb195da05138f548c9c87db98413a49
+
+jobs:
+  win32:
+    runs-on: windows-latest
+    steps:
+      - name: Check out extension
+        uses: actions/checkout@v4
+        with:
+          path: ext
+
+      - name: Check out pinned WarcraftXL
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.CORE_REPO }}
+          ref: ${{ env.CORE_REF }}
+          submodules: recursive
+          path: core
+
+      - name: Configure and run deterministic tests
+        shell: pwsh
+        run: |
+          cmake -S ext -B ext/build -A Win32 -DWXL_CONTROLLER_BUILD_EXTENSION=OFF
+          cmake --build ext/build --config Release --target wxl-controller-tests --parallel
+          ctest --test-dir ext/build -C Release --output-on-failure
+
+      - name: Place extension in WarcraftXL
+        shell: pwsh
+        run: |
+          $dest = "core/extensions/$env:EXT_NAME"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Copy-Item ext/src -Destination $dest -Recurse
+          Copy-Item ext/shared.cmake -Destination $dest
+
+      - name: Enforce SDK boundary
+        shell: pwsh
+        run: |
+          $bad = Select-String -Path ext/src/*.cpp,ext/src/*.hpp,ext/src/**/*.cpp,ext/src/**/*.hpp `
+            -Pattern '#include\s+["<]offsets/' -ErrorAction SilentlyContinue
+          if ($bad) { $bad | Out-String | Write-Error; exit 1 }
+
+      - name: Configure WarcraftXL Win32
+        shell: pwsh
+        run: cmake -S core -B core/build -A Win32 -DWXL_STRICT_SDK_BOUNDARY=ON
+
+      - name: Build extension only
+        shell: pwsh
+        run: cmake --build core/build --config Release --target $env:EXT_NAME --parallel
+
+      - name: Validate manifest
+        shell: pwsh
+        run: |
+          $m = Get-Content ext/wxl.json -Raw | ConvertFrom-Json
+          if ($m.manifest -ne 1) { throw 'manifest must be 1' }
+          if ($m.extension.id -ne $env:EXT_NAME) { throw 'wrong extension id' }
+          if ($m.extension.version -ne '0.1.0') { throw 'wrong extension version' }
+          if ($m.extension.abi -ne '1.1') { throw 'wrong ABI' }
+          if ($m.extension.entry -ne "$env:EXT_NAME.dll") { throw 'wrong entry DLL' }
+          if ($m.extension.hooks.Count -ne 0) { throw 'diagnostic build must declare no hooks' }
+
+      - name: Verify PE and exports
+        shell: pwsh
+        run: |
+          $dll = "core/build/Release/$env:EXT_NAME.dll"
+          if (!(Test-Path $dll)) { throw "missing $dll" }
+          $headers = dumpbin /headers $dll | Out-String
+          if ($headers -notmatch '14C machine \(x86\)') { throw 'DLL is not x86' }
+          $exports = dumpbin /exports $dll | Out-String
+          if ($exports -notmatch '\bWXL_Query\b') { throw 'missing WXL_Query export' }
+          if ($exports -notmatch '\bWXL_Load\b') { throw 'missing WXL_Load export' }
+
+      - name: Stage intended artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item "core/build/Release/$env:EXT_NAME.dll" "dist/$env:EXT_NAME.dll"
+
+      - name: Upload DLL
+        uses: actions/upload-artifact@v4
+        with:
+          name: wxl-controller-input-win32-diagnostic
+          path: dist/wxl-controller-input.dll
+          if-no-files-found: error
