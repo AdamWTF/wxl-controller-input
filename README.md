@@ -17,10 +17,16 @@ The repository currently implements the safe first milestones:
   validation, and atomic configuration/profile replacement;
 - release-on-cancel behavior and neutral-state reconciliation;
 - validated configuration defaults and a diagnostic WarcraftXL overlay panel;
+- neutral-gated binding capture and a versioned `wxl.controller-input` native runtime interface;
 - deterministic policy tests and build-only Win32 CI.
 
 The validated global profile is loaded at startup. Per-character records are persisted and tested,
 but remain dormant until WarcraftXL can provide a safe realm/character identity.
+
+The native runtime interface exposes capability flags, connection/context state, raw axes and
+buttons, logical modifiers/layer, and binding-capture control. It intentionally does not advertise
+the game-output capability. Calls are main-thread-only until WarcraftXL defines a broader threading
+contract.
 
 Gameplay output is intentionally disabled. The pinned WarcraftXL SDK has no published semantic
 operations for movement, action slots, named bindings, text-entry detection, or RMB-style camera

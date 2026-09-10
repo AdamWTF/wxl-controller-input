@@ -53,6 +53,15 @@ void DrawDebugPanel(const WXL_Api &api, const FeatureController &controller) noe
     if (pressed == "Pressed:")
         pressed += " none";
     api.UiText(pressed.c_str());
+    if (controller.CaptureActive()) {
+        const auto captured = controller.CapturedButton();
+        std::snprintf(text, sizeof(text), "Binding capture: active%s%s",
+                      captured ? " - captured " : " - waiting",
+                      captured ? ButtonName(*captured) : "");
+        api.UiText(text);
+    } else {
+        api.UiText("Binding capture: inactive");
+    }
     std::snprintf(text, sizeof(text), "Recent cancellation: %s", controller.CancellationReason());
     api.UiText(text);
     api.UiText("Camera path: disabled; upstream semantic API required");

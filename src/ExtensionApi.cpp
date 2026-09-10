@@ -1,5 +1,7 @@
 #include "ExtensionApi.hpp"
 
+#include "bridge/ControllerBridge.hpp"
+#include "bridge/ControllerInputApi.h"
 #include "config/Config.hpp"
 #include "diagnostics/DebugPanel.hpp"
 #include "engine/events/Event.hpp"
@@ -83,6 +85,9 @@ bool LoadExtension(const WXL_Api *api) noexcept {
             return false;
         g_controller = std::move(controller);
         g_api = api;
+        ControllerBridge::Bind(g_controller.get());
+        api->PublishInterface(WXL_CONTROLLER_INPUT_INTERFACE_NAME, WXL_CONTROLLER_INPUT_API_VERSION,
+                              ControllerBridge::Interface());
         api->Subscribe(static_cast<std::uint32_t>(events::Event::OnUpdate), &OnUpdate, nullptr);
         api->Subscribe(static_cast<std::uint32_t>(events::Event::OnWorldEnter), &OnWorldEnter,
                        nullptr);

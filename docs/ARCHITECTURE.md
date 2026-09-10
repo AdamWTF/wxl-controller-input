@@ -31,6 +31,11 @@ overrides remain sparse and resolve over built-in defaults. Configuration and bi
 same-directory temporary file followed by Windows write-through replacement, so a failed save does
 not truncate the previous file.
 
+`BindingCapture` first requires a completely neutral controller snapshot, then records one fresh
+canonical digital down transition while all gameplay policy remains suppressed. `ControllerBridge`
+publishes the versioned `wxl.controller-input` C table through the core interface registry. The
+bridge reports only implemented capability flags and contains no addon visual policy.
+
 The policy sinks currently have no game-side implementation. That is intentional: the pinned SDK
 does not expose the needed semantics. The only live side effects are SDL Gamepad access, core log
 messages, event subscriptions, and diagnostic overlay text. Physical keyboard/mouse messages are

@@ -11,6 +11,7 @@ option(WXL_CONTROLLER_BUILD_EXTENSION "Build the WarcraftXL extension" ${WIN32})
 
 add_library(wxl-controller-policy STATIC
     src/bindings/Bindings.cpp
+    src/bridge/BindingCapture.cpp
     src/camera/CameraController.cpp
     src/config/Config.cpp
     src/controller/ControllerSelector.cpp
@@ -52,6 +53,7 @@ if(WXL_CONTROLLER_BUILD_EXTENSION)
     add_library(wxl-controller-input SHARED
         src/Module.cpp
         src/ExtensionApi.cpp
+        src/bridge/ControllerBridge.cpp
         src/controller/SdlControllerBackend.cpp
         src/diagnostics/DebugPanel.cpp
         src/runtime/FeatureController.cpp)

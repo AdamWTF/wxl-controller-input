@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bindings/Bindings.hpp"
+#include "bridge/BindingCapture.hpp"
 #include "camera/CameraController.hpp"
 #include "config/Config.hpp"
 #include "controller/ControllerTypes.hpp"
@@ -25,6 +26,8 @@ class FeatureController final : private MovementSink, private CameraSink, privat
     void OnWorldLeave(const char *reason) noexcept;
     void OnFocus(bool focused) noexcept;
     void CancelAll(const char *reason) noexcept;
+    bool BeginBindingCapture() noexcept;
+    void CancelBindingCapture() noexcept;
 
     [[nodiscard]] bool Connected() const noexcept;
     [[nodiscard]] const DeviceInfo *CurrentDevice() const noexcept;
@@ -36,6 +39,18 @@ class FeatureController final : private MovementSink, private CameraSink, privat
     }
     [[nodiscard]] Layer CurrentLayer() const noexcept {
         return modifiers_.CurrentLayer();
+    }
+    [[nodiscard]] bool LeftModifierActive() const noexcept {
+        return modifiers_.LeftActive();
+    }
+    [[nodiscard]] bool RightModifierActive() const noexcept {
+        return modifiers_.RightActive();
+    }
+    [[nodiscard]] bool CaptureActive() const noexcept {
+        return capture_.Active();
+    }
+    [[nodiscard]] std::optional<Button> CapturedButton() const noexcept {
+        return capture_.Captured();
     }
     [[nodiscard]] const Snapshot &CurrentSnapshot() const noexcept {
         return current_;
@@ -62,6 +77,7 @@ class FeatureController final : private MovementSink, private CameraSink, privat
     MovementController movement_;
     CameraController camera_;
     ModifierController modifiers_;
+    BindingCapture capture_;
     BindingController bindingController_;
     std::unique_ptr<SdlControllerBackend> backend_;
     Snapshot current_{};

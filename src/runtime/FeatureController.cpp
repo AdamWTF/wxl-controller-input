@@ -73,6 +73,11 @@ void FeatureController::OnUpdate() noexcept {
         previous_ = next;
         return;
     }
+    if (capture_.Active()) {
+        capture_.Update(next);
+        previous_ = next;
+        return;
+    }
     if (waitingForNeutral_) {
         if (!Neutral(next)) {
             previous_ = next;
@@ -112,9 +117,27 @@ void FeatureController::CancelAll(const char *reason) noexcept {
     camera_.Cancel();
     bindingController_.Cancel();
     modifiers_.Cancel();
+    capture_.Cancel();
     waitingForNeutral_ = true;
     previous_ = {};
     cancellationReason_ = reason ? reason : "unknown";
+}
+
+bool FeatureController::BeginBindingCapture() noexcept {
+    if (!config_.enabled || !inWorld_ || !focused_ || !Connected() || api_.UiIsOpen())
+        return false;
+    CancelAll("binding capture");
+    capture_.Begin();
+    api_.Log(WXL_LOG_INFO, "controller-input", "binding capture started");
+    return true;
+}
+
+void FeatureController::CancelBindingCapture() noexcept {
+    if (!capture_.Active())
+        return;
+    capture_.Cancel();
+    CancelAll("binding capture cancelled");
+    api_.Log(WXL_LOG_INFO, "controller-input", "binding capture stopped");
 }
 
 bool FeatureController::Connected() const noexcept {

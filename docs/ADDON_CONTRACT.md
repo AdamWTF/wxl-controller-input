@@ -9,6 +9,12 @@ bitset. All calls are bounded, validate enum/string/buffer arguments, return exp
 and never throw across the C ABI. It will be registered through a generic WarcraftXL Lua/native
 bridge once such a bridge exists.
 
+The diagnostic DLL already publishes the C-compatible version 1 interface through WarcraftXL's
+extension interface registry. Its current capability flags cover diagnostics, binding persistence,
+and binding capture; `GAME_OUTPUT` remains clear. `GetState`, `BeginBindingCapture`, and
+`CancelBindingCapture` are implemented. Consumers must invoke them on the game/main thread. The
+header is `src/bridge/ControllerInputApi.h`.
+
 Read operations expose extension/runtime versions and readiness; capability/degraded flags;
 Controller 1 identity, name, family and presentation labels; raw and processed axes; button and
 trigger state; authoritative LT/RT state and active layer; effective configuration; effective
@@ -41,4 +47,3 @@ the ability displayed for a controller button is exactly the one invoked in ever
 vehicle, possess, and page state. A permanently fixed numerical slot is not sufficient for the main
 bar. Until WarcraftXL supplies this semantic contract and it is hardware-tested, the addon must not
 claim action-bar correctness.
-

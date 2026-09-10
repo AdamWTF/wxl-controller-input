@@ -1,4 +1,5 @@
 #include "bindings/Bindings.hpp"
+#include "bridge/BindingCapture.hpp"
 #include "camera/CameraController.hpp"
 #include "config/Config.hpp"
 #include "controller/ControllerSelector.hpp"
@@ -136,6 +137,32 @@ void TestCamera() {
     nativeSink.allow = false;
     native.Update(1, 0);
     CHECK(nativeSink.ends == 1 && !native.Active());
+}
+
+void TestBindingCapture() {
+    BindingCapture capture;
+    Snapshot snapshot{};
+    snapshot.buttons[Index(Button::FaceSouth)] = true;
+    capture.Begin();
+    capture.Update(snapshot);
+    CHECK(capture.Active() && capture.WaitingForNeutral() && !capture.Captured());
+    snapshot = {};
+    capture.Update(snapshot);
+    CHECK(!capture.WaitingForNeutral());
+    snapshot.buttons[Index(Button::FaceWest)] = true;
+    capture.Update(snapshot);
+    CHECK(capture.Captured() == Button::FaceWest);
+    snapshot.buttons[Index(Button::FaceNorth)] = true;
+    capture.Update(snapshot);
+    CHECK(capture.Captured() == Button::FaceWest);
+    capture.Cancel();
+    CHECK(!capture.Active() && !capture.Captured());
+
+    capture.Begin();
+    snapshot = {};
+    snapshot.leftTrigger = 0.5F;
+    capture.Update(snapshot);
+    CHECK(capture.WaitingForNeutral());
 }
 
 void TestBindings() {
@@ -295,6 +322,7 @@ int main() {
     TestMovement();
     TestModifiers();
     TestCamera();
+    TestBindingCapture();
     TestBindings();
     TestProfiles();
     TestSelection();
