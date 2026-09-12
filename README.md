@@ -1,53 +1,36 @@
 # WarcraftXL Controller Input
 
-`wxl-controller-input` is a WarcraftXL extension for World of Warcraft 3.3.5a
-(build 12340). It is intended to provide native-feeling gamepad movement, camera control,
-four LT/RT action layers, hotplugging, persistent profiles, and a versioned addon bridge while
-leaving physical keyboard and mouse input untouched.
+`wxl-controller-input` is a WarcraftXL extension for World of Warcraft 3.3.5a build 12340. It
+replaces WoWpadX's controller-input role for an unmodified ConsolePortLK installation.
 
-## Current status: pre-addon build-12340 hardware candidate 0.1.0
+```text
+SDL3 gamepad -> fixed ConsolePort key/mouse mapping -> WoW window -> ConsolePortLK
+```
 
-The repository currently implements the safe first milestones:
+The extension uses SDL3's normalized Gamepad API, supports one sticky Controller 1 with hotplug,
+and emits stateful WoW-window keyboard and mouse input. It does not use `SendInput`, contain client
+addresses, publish a Lua editor API, or require Pixel Bridge,
+Steam Input, an external mapper, or a companion application.
 
-- SDL3 Gamepad discovery, canonical control translation, Controller 1 selection, disconnect,
-  and same-identity reconnect;
-- radial stick deadzones, deterministic eight-direction movement policy, trigger hysteresis,
-  press-start layer ownership, default mappings, profile resolution, and camera policy;
-- versioned JSON global/character binding profiles, reset-to-inherited behavior, strict binding
-  validation, and atomic configuration/profile replacement;
-- release-on-cancel behavior and neutral-state reconciliation;
-- validated configuration defaults and a diagnostic WarcraftXL overlay panel;
-- neutral-gated binding capture and a versioned `wxl.controller-input` native runtime interface;
-- a contract-v1 `_G.WXLControllerInput` Lua table with live transactional mappings, profiles,
-  settings, binding capture, controller state, and presentation metadata;
-- DLL-owned edit-box suppression and truthful stock main-bar/stance paging resolution, with safe
-  logical-slot suppression in ambiguous vehicle and possess contexts;
-- deterministic policy tests and build-only Win32 CI.
+## Fixed mapping
 
-The validated global profile is loaded at startup. The addon can supply realm and character through
-the Lua contract; without it, the DLL remains independently usable with global/default mappings.
+- D-pad: F1-F4; Back/Start: F5/F6; LB/RB: F7/F8.
+- North/East/South/West: Numpad 4/F10/F11/F12. Numpad 4 avoids WarcraftXL's F9 overlay toggle.
+- LT/RT: left Shift/left Ctrl.
+- Left stick: W/A/S/D plus ConsolePort H/V helpers; right stick: focused camera movement.
+- L3/R3: held left/right mouse buttons.
+- Guide/Misc1 and supported paddles: Numpad `*`, `+`, and 0-3.
 
-The native runtime interface exposes capability flags, connection/context state, raw axes and
-buttons, logical modifiers/layer, binding capture, and game output. Calls are main-thread-only.
+Right-stick camera control temporarily moves the native cursor only while WoW is foreground, then
+restores it. Touchscreen contact suspends controller mouse output until touch promotion has ended
+and the stick/buttons return neutral, preventing touch clicks from inheriting mouselook.
 
-The hardware candidate ports the proven native movement and action calls from the earlier
-WoW Companion Screen controller. Those build-specific bindings are isolated in one adapter and
-validated against the exact supported `Wow.exe` hash. The adapter uses the client's own input
-state machine for movement, the native action executor for action slots, synchronous window input
-for auxiliary key bindings, and the earlier synchronous RMB/mouse-move camera fallback. It never
-uses `SendInput` and requires no WarcraftXL core change or second DLL.
+Copy `wxl-controller-input.cfg.example` beside the DLL as `wxl-controller-input.cfg` to customize
+technical thresholds. Gameplay actions remain owned by ConsolePortLK.
 
-## Pins
+## Build
 
-- WarcraftXL: tag `v1.1.247`, commit `bc2fefd93fb195da05138f548c9c87db98413a49`
-- SDL: release `3.4.10`, commit `8e37db5e797b6167f3a00d697d816a684bd259c7`
-- Client: Win32 build `12340`
-
-SDL is fetched at configure time and linked statically; no `SDL3.dll` is shipped. Only its
-gamepad/joystick and supporting event functionality is enabled; audio, video, rendering, GPU,
-camera, haptic, sensor, power, dialog, and tray subsystems are disabled.
-
-## Build tests
+The project pins WarcraftXL v1.1.247 and SDL 3.4.10. Policy tests can be built without the DLL:
 
 ```powershell
 cmake -S . -B build -DWXL_CONTROLLER_BUILD_EXTENSION=OFF
@@ -55,17 +38,12 @@ cmake --build build --config Release --target wxl-controller-tests
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-To build the extension standalone, use a Win32 generator and set `WXL_CORE_ROOT` to the exact
-pinned core checkout. CI also verifies the supported integration path by copying `src/` and
-`shared.cmake` into `wxl-core/extensions/wxl-controller-input` and building only that target with
-`WXL_STRICT_SDK_BOUNDARY=ON`.
+The extension requires a Win32 toolchain and `WXL_CORE_ROOT` pointing to the pinned core checkout.
+SDL is statically linked, so no `SDL3.dll` is shipped.
 
-This remains a hardware-test candidate. The Lua smoke suite, paging/text-entry behavior,
-camera/touch coexistence, and every cleanup path must pass in the client before release.
+## Status
 
-The maintained [addon contract](docs/ADDON_CONTRACT.md) freezes the version-1 identifiers and Lua
-surface. The [implementation status](docs/IMPLEMENTATION_STATUS.md) records what remains before v1.
+Version 0.2.2 is an implementation candidate. Automated policy coverage is included; the Windows,
+controller, ConsolePortLK, GameNative, Wine, and Proton hardware matrix remains the release gate.
 
-## License
-
-GPL-3.0-or-later. SDL is available under the zlib license.
+License: GPL-3.0-or-later. SDL uses the zlib license.

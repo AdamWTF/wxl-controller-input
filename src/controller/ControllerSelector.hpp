@@ -15,6 +15,7 @@ class ControllerSelector {
     [[nodiscard]] const std::optional<DeviceInfo> &Active() const noexcept {
         return active_;
     }
+    [[nodiscard]] bool HasIdentity() const noexcept { return !controllerOneIdentity_.empty(); }
 
   private:
     std::optional<DeviceInfo> active_;

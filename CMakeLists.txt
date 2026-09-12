@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(wxl-controller-input VERSION 0.1.0 LANGUAGES CXX)
+project(wxl-controller-input VERSION 0.2.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -10,18 +10,9 @@ option(WXL_CONTROLLER_BUILD_TESTS "Build deterministic policy tests" ON)
 option(WXL_CONTROLLER_BUILD_EXTENSION "Build the WarcraftXL extension" ${WIN32})
 
 add_library(wxl-controller-policy STATIC
-    src/bindings/Bindings.cpp
-    src/bridge/BindingCapture.cpp
-    src/camera/CameraController.cpp
     src/config/Config.cpp
     src/controller/ControllerSelector.cpp
-    src/input/Deadzone.cpp
-    src/input/ModifierController.cpp
-    src/movement/MovementController.cpp
-    src/persistence/AtomicFile.cpp
-    src/persistence/BindingStore.cpp
-    src/persistence/Json.cpp
-    src/profiles/ProfileResolver.cpp)
+    src/mapper/ConsolePortMapper.cpp)
 target_include_directories(wxl-controller-policy PUBLIC src)
 if(MSVC)
     target_compile_options(wxl-controller-policy PRIVATE /W4 /WX)
@@ -72,11 +63,9 @@ if(WXL_CONTROLLER_BUILD_EXTENSION)
     add_library(wxl-controller-input SHARED
         src/Module.cpp
         src/ExtensionApi.cpp
-        src/bridge/ControllerBridge.cpp
-        src/bridge/LuaBridge.cpp
         src/controller/SdlControllerBackend.cpp
         src/diagnostics/DebugPanel.cpp
-        src/game/NativeGameAdapter.cpp
+        src/input/WindowInputSink.cpp
         src/runtime/FeatureController.cpp)
     target_link_libraries(wxl-controller-input PRIVATE wxl-controller-policy SDL3::SDL3-static)
     target_include_directories(wxl-controller-input PRIVATE

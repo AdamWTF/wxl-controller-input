@@ -21,17 +21,18 @@ enum class Button : std::uint8_t {
     RightStick,
     View,
     Menu,
+    Guide,
+    Misc1,
+    RightPaddle1,
+    RightPaddle2,
+    LeftPaddle1,
+    LeftPaddle2,
     Count
 };
 
-enum class Layer : std::uint8_t {
-    Base,
-    LT,
-    RT,
-    LTRT
-};
-
 struct Snapshot {
+    // Sticks use the WoWpadX-compatible approximately -128..127 range.
+    // Triggers use 0..250.
     float leftX{};
     float leftY{};
     float rightX{};

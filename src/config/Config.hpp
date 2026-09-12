@@ -7,18 +7,16 @@ namespace wxl::controller {
 struct Config {
     bool enabled{true};
     bool debugLogging{false};
-    float movementDeadzone{0.18F};
-    float cameraDeadzone{0.15F};
-    float cameraHorizontalSensitivity{1.0F};
-    float cameraVerticalSensitivity{1.0F};
-    bool invertCameraY{false};
-    float triggerActivateThreshold{0.50F};
-    float triggerReleaseThreshold{0.40F};
-    bool enableAnalogWalk{false};
-    float walkRunThreshold{0.50F};
+    float movementThreshold{40.0F};
+    float leftTriggerThreshold{80.0F};
+    float rightTriggerThreshold{80.0F};
+    float cursorDeadzone{20.0F};
+    float cursorSpeed{16.0F};
+    float cursorCurve{4.0F};
+    bool simpleRadial{false};
+    bool swapSticks{false};
 };
 
 Config LoadConfig(const std::filesystem::path &path) noexcept;
-bool SaveConfigAtomic(const std::filesystem::path &path, const Config &config) noexcept;
 
 } // namespace wxl::controller

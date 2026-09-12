@@ -1,25 +1,15 @@
-#include "bindings/Bindings.hpp"
-#include "bindings/ActionSlots.hpp"
-#include "bridge/BindingCapture.hpp"
-#include "camera/CameraController.hpp"
 #include "config/Config.hpp"
 #include "controller/ControllerSelector.hpp"
-#include "input/Deadzone.hpp"
-#include "input/ModifierController.hpp"
-#include "input/KeyOwnership.hpp"
-#include "input/MouseButtonOwnership.hpp"
-#include "movement/MovementController.hpp"
-#include "persistence/BindingStore.hpp"
-#include "persistence/Json.hpp"
-#include "profiles/ProfileResolver.hpp"
+#include "input/DigitalOwnership.hpp"
+#include "input/MouseSourceFilter.hpp"
+#include "input/RelativeAccumulator.hpp"
+#include "input/TouchInputGate.hpp"
+#include "mapper/ConsolePortMapper.hpp"
 
-#include <array>
-#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <string>
 #include <utility>
 #include <vector>
 
@@ -29,240 +19,281 @@ int failures{};
 #define CHECK(x)                                                                                   \
     do {                                                                                           \
         if (!(x)) {                                                                                \
-            std::cerr << __FILE__ << ':' << __LINE__ << " CHECK failed: " #x "\n";                 \
+            std::cerr << __FILE__ << ':' << __LINE__ << " CHECK failed: " #x "\n";             \
             ++failures;                                                                            \
         }                                                                                          \
     } while (false)
 
-struct MoveSink final : MovementSink {
-    std::vector<std::pair<Movement, bool>> events;
-    void SetMovement(Movement m, bool down) noexcept override {
-        events.emplace_back(m, down);
-    }
-};
-struct CamSink final : CameraSink {
-    int begins{}, ends{}, moves{};
-    float x{}, y{};
+struct FakeSink final : IWoWInputSink {
+    std::vector<std::pair<Key, bool>> keys;
+    std::vector<std::pair<MouseButton, bool>> mouse;
+    std::vector<std::pair<float, float>> motion;
+    std::vector<bool> camera;
+    int releaseAll{};
     bool allow{true};
-    bool Begin(CameraPath) noexcept override {
-        ++begins;
+    bool SetKey(Key key, bool down) noexcept override {
+        keys.emplace_back(key, down);
         return allow;
     }
-    bool Move(float a, float b) noexcept override {
-        ++moves;
-        x = a;
-        y = b;
+    bool SetMouseButton(MouseButton button, bool down) noexcept override {
+        mouse.emplace_back(button, down);
         return allow;
     }
-    void End() noexcept override {
-        ++ends;
+    bool SetCameraActive(bool active) noexcept override {
+        camera.push_back(active);
+        return allow;
     }
-};
-struct BindSink final : BindingSink {
-    std::vector<Binding> presses, releases;
-    bool Press(const Binding &b) noexcept override {
-        presses.push_back(b);
-        return true;
+    bool MoveCameraRelative(float x, float y) noexcept override {
+        motion.emplace_back(x, y);
+        return allow;
     }
-    void Release(const Binding &b) noexcept override {
-        releases.push_back(b);
-    }
+    bool Reconcile(bool) noexcept override { return allow; }
+    void ReleaseAll() noexcept override { ++releaseAll; }
 };
 
-void TestDeadzone() {
-    CHECK(ApplyRadialDeadzone(0.18F, 0, 0.18F).x == 0);
-    CHECK(ApplyRadialDeadzone(0.50F, 0, 0.18F).x > 0);
-    const auto diagonal = ApplyRadialDeadzone(0.5F, 0.5F, 0.18F);
-    CHECK(std::abs(diagonal.x - diagonal.y) < 0.0001F);
-}
-
-void TestMovement() {
-    MoveSink sink;
-    MovementController movement(sink);
-    movement.Update(0, -1);
-    CHECK((sink.events == std::vector<std::pair<Movement, bool>>{{Movement::Forward, true}}));
-    movement.Update(0.08F, -1);
-    CHECK((movement.State() == std::array<bool, 4>{true, false, false, false}));
-    movement.Update(0, 1);
-    CHECK((sink.events[1] == std::pair{Movement::Forward, false}));
-    CHECK((sink.events[2] == std::pair{Movement::Backward, true}));
-    movement.Update(-1, -1);
-    CHECK(movement.State()[0] && movement.State()[2]);
-    movement.Cancel();
-    const auto count = sink.events.size();
-    movement.Cancel();
-    CHECK(sink.events.size() == count);
-
-    struct DirectionCase {
-        float x;
-        float y;
-        std::array<bool, 4> expected;
+void TestFixedButtonMappings() {
+    struct Case { Button button; Key key; };
+    constexpr Case cases[]{
+        {Button::DPadUp, Key::F1}, {Button::DPadRight, Key::F2},
+        {Button::DPadDown, Key::F3}, {Button::DPadLeft, Key::F4},
+        {Button::View, Key::F5}, {Button::Menu, Key::F6},
+        {Button::LeftShoulder, Key::F7}, {Button::RightShoulder, Key::F8},
+        {Button::FaceNorth, Key::Numpad4}, {Button::FaceEast, Key::F10},
+        {Button::FaceSouth, Key::F11}, {Button::FaceWest, Key::F12},
+        {Button::Guide, Key::NumpadMultiply}, {Button::Misc1, Key::NumpadAdd},
+        {Button::RightPaddle1, Key::Numpad0}, {Button::RightPaddle2, Key::Numpad1},
+        {Button::LeftPaddle1, Key::Numpad2}, {Button::LeftPaddle2, Key::Numpad3},
     };
-    constexpr DirectionCase directions[]{
-        {0, -1, {true, false, false, false}}, {0, 1, {false, true, false, false}},
-        {-1, 0, {false, false, true, false}}, {1, 0, {false, false, false, true}},
-        {-1, -1, {true, false, true, false}}, {1, -1, {true, false, false, true}},
-        {-1, 1, {false, true, true, false}},  {1, 1, {false, true, false, true}},
-        {0, 0, {false, false, false, false}},
-    };
-    for (const auto &direction : directions) {
-        movement.Update(direction.x, direction.y);
-        CHECK(movement.State() == direction.expected);
+    for (const auto &test : cases) {
+        FakeSink sink;
+        ConsolePortMapper mapper(sink, Config{});
+        Snapshot state{};
+        state.buttons[Index(test.button)] = true;
+        CHECK(mapper.Update(state));
+        CHECK((sink.keys == std::vector<std::pair<Key, bool>>{{test.key, true}}));
+        CHECK(mapper.Update(state));
+        CHECK(sink.keys.size() == 1);
+        state.buttons[Index(test.button)] = false;
+        CHECK(mapper.Update(state));
+        CHECK(sink.keys.size() == 2 && sink.keys.back() == std::make_pair(test.key, false));
     }
 }
 
-void TestModifiers() {
-    ModifierController m;
-    CHECK(m.Update(0.49F, 0) == Layer::Base);
-    CHECK(m.Update(0.50F, 0) == Layer::LT);
-    CHECK(m.Update(0.45F, 0.50F) == Layer::LTRT);
-    CHECK(m.Update(0.39F, 0.45F) == Layer::RT);
-    CHECK(m.Update(0, 0.39F) == Layer::Base);
-    m.Update(1, 1);
-    m.Cancel();
-    CHECK(m.CurrentLayer() == Layer::Base);
+void TestModifiersAndMouseButtons() {
+    FakeSink sink;
+    ConsolePortMapper mapper(sink, Config{});
+    Snapshot state{};
+    state.leftTrigger = 80.0F;
+    state.rightTrigger = 80.0F;
+    CHECK(mapper.Update(state));
+    CHECK(sink.keys.empty());
+    state.leftTrigger = 80.01F;
+    state.rightTrigger = 250.0F;
+    state.buttons[Index(Button::FaceSouth)] = true;
+    state.buttons[Index(Button::LeftStick)] = true;
+    state.buttons[Index(Button::RightStick)] = true;
+    CHECK(mapper.Update(state));
+    CHECK(mapper.State().keys[Index(Key::LeftShift)]);
+    CHECK(mapper.State().keys[Index(Key::LeftControl)]);
+    CHECK(mapper.State().keys[Index(Key::F11)]);
+    CHECK((sink.mouse == std::vector<std::pair<MouseButton, bool>>{
+                             {MouseButton::Left, true}, {MouseButton::Right, true}}));
+    CHECK(mapper.Update(state));
+    CHECK(sink.mouse.size() == 2);
+    mapper.ReleaseAll();
+    CHECK(!mapper.State().keys[Index(Key::LeftShift)]);
+    CHECK(sink.mouse.size() == 4);
+    CHECK(sink.releaseAll == 1);
+    mapper.ReleaseAll();
+    CHECK(sink.releaseAll == 2);
+    CHECK(sink.mouse.size() == 4);
 }
 
-void TestCamera() {
-    CamSink sink;
-    CameraController camera(sink, CameraPath::MouseFallback, 0.15F, 2, 3, true);
-    camera.Update(0.1F, 0);
-    CHECK(sink.begins == 0);
-    camera.Update(1, 0.5F);
-    CHECK(sink.begins == 1 && sink.moves == 1 && sink.x > 0 && sink.y < 0);
-    camera.Update(0, 0);
-    CHECK(sink.ends == 1);
-    camera.Cancel();
-    CHECK(sink.ends == 1);
+void TestMovementAndHelpers() {
+    FakeSink sink;
+    ConsolePortMapper mapper(sink, Config{});
+    Snapshot state{};
+    state.leftX = 100.0F;
+    state.leftY = -50.0F;
+    CHECK(mapper.Update(state));
+    CHECK(mapper.State().keys[Index(Key::W)] && mapper.State().keys[Index(Key::D)]);
+    CHECK(mapper.State().keys[Index(Key::H)] && !mapper.State().keys[Index(Key::V)]);
+    state.leftX = -50.0F;
+    state.leftY = 100.0F;
+    CHECK(mapper.Update(state));
+    CHECK(mapper.State().keys[Index(Key::A)] && mapper.State().keys[Index(Key::S)]);
+    CHECK(!mapper.State().keys[Index(Key::H)] && mapper.State().keys[Index(Key::V)]);
+    state = {};
+    CHECK(mapper.Update(state));
+    for (Key key : {Key::W, Key::A, Key::S, Key::D, Key::H, Key::V})
+        CHECK(!mapper.State().keys[Index(key)]);
 
-    CamSink nativeSink;
-    CameraController native(nativeSink, CameraPath::Native);
-    native.Update(1, 0);
-    CHECK(nativeSink.begins == 1 && nativeSink.moves == 1);
-    nativeSink.allow = false;
-    native.Update(1, 0);
-    CHECK(nativeSink.ends == 1 && !native.Active());
-}
-
-void TestBindingCapture() {
-    BindingCapture capture;
-    Snapshot snapshot{};
-    snapshot.buttons[Index(Button::FaceSouth)] = true;
-    capture.Begin();
-    capture.Update(snapshot);
-    CHECK(capture.Active() && capture.WaitingForNeutral() && !capture.Captured());
-    snapshot = {};
-    capture.Update(snapshot);
-    CHECK(!capture.WaitingForNeutral());
-    snapshot.buttons[Index(Button::FaceWest)] = true;
-    capture.Update(snapshot);
-    CHECK(capture.Captured() == Button::FaceWest);
-    snapshot.buttons[Index(Button::FaceNorth)] = true;
-    capture.Update(snapshot);
-    CHECK(capture.Captured() == Button::FaceWest);
-    capture.Cancel();
-    CHECK(!capture.Active() && !capture.Captured());
-
-    capture.Begin();
-    snapshot = {};
-    snapshot.leftTrigger = 0.5F;
-    capture.Update(snapshot);
-    CHECK(capture.WaitingForNeutral());
-}
-
-void TestBindings() {
-    auto defaults = BuiltInBindings();
-    CHECK(defaults.size() == 38);
-    CHECK(std::get<ActionSlot>(defaults.at({Layer::Base, Button::FaceSouth})).slot == 1);
-    CHECK(std::get<ActionSlot>(defaults.at({Layer::LT, Button::DPadLeft})).slot == 56);
-    CHECK(std::get<ActionSlot>(defaults.at({Layer::RT, Button::DPadLeft})).slot == 68);
-    CHECK(std::get<ActionSlot>(defaults.at({Layer::LTRT, Button::DPadLeft})).slot == 60);
-    constexpr std::array<Button, 8> primary{Button::FaceSouth, Button::FaceEast, Button::FaceWest,
-                                            Button::FaceNorth, Button::DPadUp,   Button::DPadRight,
-                                            Button::DPadDown,  Button::DPadLeft};
-    constexpr std::array<std::pair<Layer, std::array<unsigned, 8>>, 4> expected{{
-        {Layer::Base, {1, 2, 3, 4, 5, 6, 7, 8}},
-        {Layer::LT, {49, 50, 51, 52, 53, 54, 55, 56}},
-        {Layer::RT, {61, 62, 63, 64, 65, 66, 67, 68}},
-        {Layer::LTRT, {9, 10, 11, 12, 57, 58, 59, 60}},
-    }};
-    for (const auto &[layer, slots] : expected)
-        for (std::size_t i = 0; i < primary.size(); ++i)
-            CHECK(std::get<ActionSlot>(defaults.at({layer, primary[i]})).slot == slots[i]);
-    CHECK(!IsValid(ActionSlot{0}));
-    CHECK(!IsValid(WowBinding{"MADEUP"}));
-    CHECK(IsValid(KeyBinding{"5", {"CTRL"}}));
-    CHECK(!IsValid(KeyBinding{"5", {"META"}}));
-    CHECK(!IsValid(KeyBinding{"NOT_A_KEY", {}}));
-
-    BindSink sink;
-    BindingController controller(sink, defaults);
-    controller.Update(Button::FaceSouth, true, Layer::Base);
-    controller.Update(Button::FaceSouth, true, Layer::LT);
-    controller.Update(Button::FaceSouth, false, Layer::LT);
-    CHECK(sink.presses.size() == 1 && std::get<ActionSlot>(sink.presses[0]).slot == 1);
-    CHECK(sink.releases.size() == 1 && std::get<ActionSlot>(sink.releases[0]).slot == 1);
-    controller.Update(Button::FaceSouth, true, Layer::LT);
-    CHECK(std::get<ActionSlot>(sink.presses[1]).slot == 49);
-    controller.Cancel();
-    const auto released = sink.releases.size();
-    controller.Cancel();
-    CHECK(sink.releases.size() == released);
-}
-
-void TestKeyOwnership() {
-    KeyOwnership keys;
-    CHECK(keys.Acquire(17, false) == KeyTransition::SendDown);
-    CHECK(keys.Acquire(17, false) == KeyTransition::None);
-    CHECK(keys.Owners(17) == 2);
-    CHECK(keys.Release(17, false) == KeyTransition::None);
-    CHECK(keys.Release(17, false) == KeyTransition::SendUp);
-    CHECK(keys.Acquire(17, true) == KeyTransition::None);
-    CHECK(keys.Release(17, false) == KeyTransition::None);
-    CHECK(keys.Acquire(17, false) == KeyTransition::SendDown);
-    CHECK(keys.Release(17, true) == KeyTransition::None);
-    CHECK(keys.Owners(17) == 0);
-}
-
-void TestMouseButtonOwnership() {
-    MouseButtonOwnership button;
-    CHECK(button.Begin(false) == KeyTransition::SendDown);
-    CHECK(button.Ensure(false) == KeyTransition::None);
-    CHECK(button.End(false) == KeyTransition::SendUp);
-    CHECK(button.Begin(true) == KeyTransition::None);
-    CHECK(!button.Owned());
-    CHECK(button.Ensure(false) == KeyTransition::SendDown);
-    CHECK(button.End(true) == KeyTransition::None);
-    CHECK(!button.Owned());
-}
-
-void TestEffectiveActionSlots() {
-    std::array<unsigned, 12> firstPage{};
-    std::array<unsigned, 12> secondPage{};
-    for (unsigned i = 0; i < 12; ++i) {
-        firstPage[i] = i + 1;
-        secondPage[i] = i + 13;
+    struct Direction { float x; float y; Key key; };
+    constexpr Direction cardinals[]{
+        {0.0F, -100.0F, Key::W}, {-100.0F, 0.0F, Key::A},
+        {0.0F, 100.0F, Key::S}, {100.0F, 0.0F, Key::D}};
+    for (const auto &direction : cardinals) {
+        state = {};
+        state.leftX = direction.x;
+        state.leftY = direction.y;
+        CHECK(mapper.Update(state));
+        CHECK(mapper.State().keys[Index(direction.key)]);
+        state = {};
+        CHECK(mapper.Update(state));
     }
-    CHECK(!ResolveEffectiveActionSlot(1, firstPage, false));
-    CHECK(ResolveEffectiveActionSlot(1, firstPage, true) == 1u);
-    CHECK(ResolveEffectiveActionSlot(1, secondPage, true) == 13u);
-    CHECK(ResolveEffectiveActionSlot(12, secondPage, true) == 24u);
-    CHECK(ResolveEffectiveActionSlot(49, secondPage, false) == 49u);
-    secondPage[0] = 0;
-    CHECK(!ResolveEffectiveActionSlot(1, secondPage, true));
-    CHECK(!ResolveEffectiveActionSlot(121, firstPage, true));
+
+    Config simple;
+    simple.simpleRadial = true;
+    FakeSink simpleSink;
+    ConsolePortMapper simpleMapper(simpleSink, simple);
+    state.leftX = 100.0F;
+    state.leftY = -50.0F;
+    CHECK(simpleMapper.Update(state));
+    CHECK(!simpleMapper.State().keys[Index(Key::H)]);
+
+    Config swapped;
+    swapped.swapSticks = true;
+    FakeSink swappedSink;
+    ConsolePortMapper swappedMapper(swappedSink, swapped);
+    state = {};
+    state.rightY = -100.0F;
+    state.leftX = 127.0F;
+    CHECK(swappedMapper.Update(state));
+    CHECK(swappedMapper.State().keys[Index(Key::W)]);
+    CHECK(!swappedSink.motion.empty());
 }
 
-void TestProfiles() {
-    ProfileResolver profiles;
-    const BindingKey key{Layer::Base, Button::FaceSouth};
-    CHECK(profiles.Resolve(key)->source == BindingSource::BuiltIn);
-    profiles.Global()[key] = ActionSlot{20};
-    CHECK(profiles.Resolve(key)->source == BindingSource::Global);
-    profiles.Character()[key] = ActionSlot{21};
-    CHECK(profiles.Resolve(key)->source == BindingSource::Global);
-    profiles.SetCharacterIdentity("Realm|Character");
-    CHECK(profiles.Resolve(key)->source == BindingSource::Character);
+void TestPointerCurve() {
+    FakeSink sink;
+    ConsolePortMapper mapper(sink, Config{});
+    Snapshot state{};
+    state.rightX = 19.0F;
+    CHECK(mapper.Update(state));
+    CHECK(sink.motion.empty());
+    state.rightX = 20.0F;
+    CHECK(mapper.Update(state));
+    CHECK(sink.motion.empty());
+    state.rightX = 127.0F;
+    CHECK(mapper.Update(state));
+    CHECK(sink.motion.size() == 1);
+    CHECK((sink.camera == std::vector<bool>{true}));
+    CHECK(mapper.State().cameraActive);
+    CHECK(sink.motion.back().first > 13.0F && sink.motion.back().second == 0.0F);
+    state.rightX = -127.0F;
+    state.rightY = 127.0F;
+    CHECK(mapper.Update(state));
+    CHECK(sink.motion.back().first < 0.0F && sink.motion.back().second > 0.0F);
+    state = {};
+    CHECK(mapper.Update(state));
+    CHECK(mapper.State().pointerX == 0.0F && mapper.State().pointerY == 0.0F);
+    CHECK((sink.camera == std::vector<bool>{true, false}));
+    CHECK(!mapper.State().cameraActive);
+}
+
+void TestMouseSuppressionAndNeutralRearmContract() {
+    FakeSink sink;
+    ConsolePortMapper mapper(sink, Config{});
+    Snapshot state{};
+    state.rightX = 127.0F;
+    state.buttons[Index(Button::LeftStick)] = true;
+    state.buttons[Index(Button::RightStick)] = true;
+    CHECK(mapper.Update(state));
+    CHECK(mapper.State().cameraActive);
+    CHECK(mapper.Update(state, false));
+    CHECK(!mapper.State().cameraActive);
+    CHECK(!mapper.State().mouseButtons[Index(MouseButton::Left)]);
+    CHECK(!mapper.State().mouseButtons[Index(MouseButton::Right)]);
+    CHECK(sink.camera.back() == false);
+    CHECK(sink.mouse.size() == 4);
+
+    const auto cameraTransitions = sink.camera.size();
+    const auto mouseTransitions = sink.mouse.size();
+    CHECK(mapper.Update(state, false));
+    CHECK(sink.camera.size() == cameraTransitions);
+    CHECK(sink.mouse.size() == mouseTransitions);
+
+    state = {};
+    CHECK(mapper.Update(state, true));
+    CHECK(!mapper.State().cameraActive);
+    state.rightX = 127.0F;
+    CHECK(mapper.Update(state, true));
+    CHECK(mapper.State().cameraActive);
+}
+
+void TestTouchInputGate() {
+    TouchInputGate gate;
+    CHECK(gate.Allow(0, true));
+    CHECK(gate.Begin(7));
+    CHECK(gate.Active() && gate.WaitingForNeutral());
+    CHECK(!gate.Begin(8));
+    CHECK(!gate.Allow(100, true));
+    CHECK(!gate.End(8, 100));
+    CHECK(gate.End(7, 100));
+    CHECK(!gate.Active());
+    CHECK(!gate.Allow(349, true));
+    CHECK(!gate.Allow(350, false));
+    CHECK(gate.Allow(350, true));
+    CHECK(gate.Allow(351, false));
+
+    CHECK(gate.Begin(9));
+    gate.Cancel();
+    CHECK(!gate.Active() && gate.WaitingForNeutral());
+    CHECK(!gate.Allow(0, false));
+    CHECK(gate.Allow(0, true));
+}
+
+void TestMouseSourceFilter() {
+    CHECK(IsTouchOwnedMouseExtraInfo(kTouchSyntheticMouseTag));
+    CHECK(IsTouchOwnedMouseExtraInfo(0xFF515780));
+    CHECK(IsTouchOwnedMouseExtraInfo(0xFF515781));
+    CHECK(!IsTouchOwnedMouseExtraInfo(0));
+    CHECK(!IsTouchOwnedMouseExtraInfo(0xFF515700));
+    CHECK(!IsTouchOwnedMouseExtraInfo(0x12345678));
+}
+
+void TestSinkFailurePropagation() {
+    FakeSink sink;
+    sink.allow = false;
+    ConsolePortMapper mapper(sink, Config{});
+    Snapshot state{};
+    state.buttons[Index(Button::FaceSouth)] = true;
+    CHECK(!mapper.Update(state));
+    mapper.ReleaseAll();
+    CHECK(!mapper.State().keys[Index(Key::F11)]);
+    CHECK(sink.releaseAll == 1);
+}
+
+void TestOwnershipCoexistence() {
+    DigitalOwnership ownership;
+    ownership.SetDesired(true);
+    CHECK(ownership.Reconcile(true, true) == OwnershipTransition::None);
+    CHECK(ownership.Reconcile(false, true) == OwnershipTransition::SendDown);
+    CHECK(ownership.Reconcile(true, true) == OwnershipTransition::None);
+    CHECK(ownership.Reconcile(false, true) == OwnershipTransition::ResendDown);
+    ownership.SetDesired(false);
+    CHECK(ownership.Reconcile(true, true) == OwnershipTransition::None);
+    CHECK(!ownership.Sent());
+
+    ownership.SetDesired(true);
+    CHECK(ownership.Reconcile(false, false) == OwnershipTransition::Blocked);
+    CHECK(!ownership.Sent());
+    CHECK(ownership.Reconcile(false, true) == OwnershipTransition::SendDown);
+    ownership.Undo(OwnershipTransition::SendDown);
+    CHECK(!ownership.Sent());
+    CHECK(ownership.Reconcile(false, true) == OwnershipTransition::SendDown);
+    ownership.SetDesired(false);
+    CHECK(ownership.Reconcile(false, false) == OwnershipTransition::SendUp);
+}
+
+void TestRelativeAccumulator() {
+    RelativeAccumulator accumulator;
+    CHECK(accumulator.Add(0.4F, -0.4F).x == 0);
+    CHECK(accumulator.Add(0.4F, -0.4F).y == 0);
+    const auto third = accumulator.Add(0.4F, -0.4F);
+    CHECK(third.x == 1 && third.y == -1);
+    accumulator.Reset();
+    const auto reset = accumulator.Add(0.4F, 0.4F);
+    CHECK(reset.x == 0 && reset.y == 0);
 }
 
 void TestSelection() {
@@ -275,131 +306,45 @@ void TestSelection() {
     CHECK(!selector.Reconnect({a}));
     CHECK(selector.Reconnect({DeviceInfo{9, 4, "B", "second", "ps5"}})->instanceId == 9);
 
-    ControllerSelector fallback;
-    CHECK(fallback.SelectInitial({a, DeviceInfo{3, -1, "C", "third", "switch"}})->stableId == "A");
-    CHECK(fallback.SelectInitial({b})->stableId == "A");
-    CHECK(fallback.Disconnect(1));
-    CHECK(!fallback.Reconnect({b}));
+    ControllerSelector hotplug;
+    CHECK(!hotplug.SelectInitial({}));
+    CHECK(!hotplug.HasIdentity());
+    CHECK(hotplug.SelectInitial({a})->stableId == "A");
 }
 
-void TestJson() {
-    const auto value = json::Parse(R"({"name":"Realm\u0020Name","items":[true,false,null,1.5]})");
-    CHECK(value.has_value());
-    CHECK(value->AsObject() != nullptr);
-    CHECK(*value->AsObject()->at("name").AsString() == "Realm Name");
-    CHECK(json::Parse(json::Serialize(*value)).has_value());
-    const auto emoji = json::Parse(R"("\uD83C\uDFAE")");
-    CHECK(emoji && *emoji->AsString() == "\xF0\x9F\x8E\xAE");
-    CHECK(!json::Parse(R"("\uD83C")"));
-    CHECK(!json::Parse("{broken"));
-    CHECK(!json::Parse(R"({"duplicate":1,"duplicate":2})"));
-}
-
-void TestPersistence() {
-    const auto root = std::filesystem::temp_directory_path() / "wxl-controller-input-policy-tests";
+void TestConfig() {
+    const auto path = std::filesystem::temp_directory_path() / "wxl-controller-input-config-test.cfg";
+    {
+        std::ofstream output(path);
+        output << "Enabled=false\nDebugLogging=true\nMovementThreshold=500\n"
+                  "LeftTriggerThreshold=70\nRightTriggerThreshold=90\nCursorDeadzone=21\n"
+                  "CursorSpeed=17\nCursorCurve=5\nSimpleRadial=true\nSwapSticks=true\n"
+                  "MovementDeadzone=0.9\n";
+    }
+    const Config config = LoadConfig(path);
+    CHECK(!config.enabled && config.debugLogging);
+    CHECK(config.movementThreshold == 127.0F);
+    CHECK(config.leftTriggerThreshold == 70.0F && config.rightTriggerThreshold == 90.0F);
+    CHECK(config.cursorDeadzone == 21.0F && config.cursorSpeed == 17.0F);
+    CHECK(config.cursorCurve == 5.0F && config.simpleRadial && config.swapSticks);
     std::error_code ignored;
-    std::filesystem::remove_all(root, ignored);
-    std::filesystem::create_directories(root);
-
-    const auto configPath = root / "settings.cfg";
-    {
-        std::ofstream output(configPath);
-        output << "MovementDeadzone=2.0\nCameraDeadzone=bad\nUnknown=ignored\n"
-                  "InvertCameraY=true\n";
-    }
-    const Config config = LoadConfig(configPath);
-    CHECK(config.movementDeadzone == 0.95F);
-    CHECK(config.cameraDeadzone == 0.15F);
-    CHECK(config.invertCameraY);
-    Config precise = config;
-    precise.cameraHorizontalSensitivity = 1.234567F;
-    CHECK(SaveConfigAtomic(configPath, precise));
-    const Config roundTrip = LoadConfig(configPath);
-    CHECK(roundTrip.movementDeadzone == 0.95F);
-    CHECK(roundTrip.cameraHorizontalSensitivity == precise.cameraHorizontalSensitivity);
-
-    const auto bindingsPath = root / "bindings.json";
-    BindingStore store;
-    CHECK(store.Load(bindingsPath) == BindingLoadResult::Missing);
-    const BindingKey south{Layer::Base, Button::FaceSouth};
-    store.SetGlobal(south, ActionSlot{20});
-    store.SetCharacter("Realm|Character", south, ActionSlot{21});
-    store.SetGlobal({Layer::Base, Button::Menu}, Unassigned{});
-    CHECK(store.SaveAtomic(bindingsPath));
-
-    BindingStore loaded;
-    CHECK(loaded.Load(bindingsPath) == BindingLoadResult::Loaded);
-    CHECK(loaded.Resolve(std::nullopt, south)->source == BindingSource::Global);
-    CHECK(loaded.Resolve("Realm|Character", south)->source == BindingSource::Character);
-    CHECK(std::get<ActionSlot>(loaded.Effective(std::nullopt).at(south)).slot == 20);
-    CHECK(std::get<ActionSlot>(loaded.Effective("Realm|Character").at(south)).slot == 21);
-    CHECK(
-        std::get<KeyBinding>(loaded.Effective(std::nullopt).at({Layer::Base, Button::Menu})).key ==
-        "ESCAPE");
-    loaded.ResetCharacter("Realm|Character", south);
-    CHECK(loaded.Resolve("Realm|Character", south)->source == BindingSource::Global);
-    CHECK(std::get<ActionSlot>(loaded.Effective("Realm|Character").at(south)).slot == 20);
-    loaded.ResetGlobal(south);
-    CHECK(std::get<ActionSlot>(loaded.Effective(std::nullopt).at(south)).slot == 1);
-
-    BindingStore transactionSource = loaded;
-    BindingStore failedCandidate = transactionSource;
-    failedCandidate.SetGlobal(south, ActionSlot{42});
-    CHECK(!failedCandidate.SaveAtomic(root));
-    CHECK(std::get<ActionSlot>(transactionSource.Effective(std::nullopt).at(south)).slot == 1);
-
-    loaded.SetGlobal({Layer::LT, Button::FaceSouth}, ActionSlot{70});
-    loaded.SetGlobal({Layer::RT, Button::FaceSouth}, ActionSlot{71});
-    loaded.ResetLayer(std::nullopt, Layer::LT);
-    CHECK(std::get<ActionSlot>(loaded.Effective(std::nullopt)
-                                   .at({Layer::LT, Button::FaceSouth}))
-              .slot == 49);
-    CHECK(std::get<ActionSlot>(loaded.Effective(std::nullopt)
-                                   .at({Layer::RT, Button::FaceSouth}))
-              .slot == 71);
-    loaded.ResetGlobalAll();
-    CHECK(loaded.Resolve(std::nullopt, south)->source == BindingSource::BuiltIn);
-
-    {
-        std::ofstream output(bindingsPath, std::ios::trunc);
-        output
-            << R"({"schemaVersion":1,"future":{"ignored":true},"global":{"bindings":{"Base.FaceSouth":{"type":"ActionSlot","slot":22},"Base.FaceEast":{"type":"ActionSlot","slot":999}}},"characters":{}})";
-    }
-    CHECK(loaded.Load(bindingsPath) == BindingLoadResult::Loaded);
-    CHECK(std::get<ActionSlot>(loaded.Effective(std::nullopt).at(south)).slot == 22);
-    CHECK(std::get<ActionSlot>(loaded.Effective(std::nullopt).at({Layer::Base, Button::FaceEast}))
-              .slot == 2);
-
-    {
-        std::ofstream output(bindingsPath, std::ios::trunc);
-        output << R"({"schemaVersion":2,"future":true})";
-    }
-    CHECK(loaded.Load(bindingsPath) == BindingLoadResult::UnsupportedVersion);
-    CHECK(std::get<ActionSlot>(loaded.Effective(std::nullopt).at(south)).slot == 22);
-    {
-        std::ofstream output(bindingsPath, std::ios::trunc);
-        output << "not json";
-    }
-    CHECK(loaded.Load(bindingsPath) == BindingLoadResult::Invalid);
-    CHECK(std::get<ActionSlot>(loaded.Effective(std::nullopt).at(south)).slot == 22);
-    std::filesystem::remove_all(root, ignored);
+    std::filesystem::remove(path, ignored);
 }
-} // namespace
+}
 
 int main() {
-    TestDeadzone();
-    TestMovement();
-    TestModifiers();
-    TestKeyOwnership();
-    TestMouseButtonOwnership();
-    TestCamera();
-    TestBindingCapture();
-    TestBindings();
-    TestEffectiveActionSlots();
-    TestProfiles();
+    TestFixedButtonMappings();
+    TestModifiersAndMouseButtons();
+    TestMovementAndHelpers();
+    TestPointerCurve();
+    TestMouseSuppressionAndNeutralRearmContract();
+    TestTouchInputGate();
+    TestMouseSourceFilter();
+    TestSinkFailurePropagation();
+    TestOwnershipCoexistence();
+    TestRelativeAccumulator();
     TestSelection();
-    TestJson();
-    TestPersistence();
+    TestConfig();
     if (failures)
         std::cerr << failures << " failure(s)\n";
     return failures ? EXIT_FAILURE : EXIT_SUCCESS;

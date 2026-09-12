@@ -1,8 +1,5 @@
 # WarcraftXL Controller Input
 
-Controller support for World of Warcraft 3.3.5a through WarcraftXL, designed around canonical SDL3
-Gamepad input, safe hotplugging, four LT/RT action layers, and strict coexistence with physical
-keyboard, mouse, and other extensions.
-
-Version 0.1.0 is an exact-build hardware-validation candidate. It ports the earlier Companion
-Screen controller's native movement/action path into the extension without replacing WarcraftXL.
+Native SDL3 controller input for unmodified ConsolePortLK on World of Warcraft 3.3.5a. Provides the
+fixed WoWpadX-compatible F-key, modifier, movement, pointer, mouse-button, and extended-controller
+namespace without an external mapper, Pixel Bridge, Steam Input dependency, or client offsets.

@@ -1,42 +1,35 @@
-# Hardware test checklist
+# Hardware and integration test checklist
 
-This file records human validation only; automated test results do not count as hardware passes.
+Record controller model, connection mode, Windows/runtime version, WarcraftXL commit, extension
+commit, DLL SHA-256, and observed result for each pass.
 
-## Diagnostic build 0.1.0
+## Packaging and lifecycle
 
-- [ ] Windows 10: DLL loads, no `SDL3.dll` required
-- [ ] Windows 11: DLL loads, no `SDL3.dll` required
-- [ ] Xbox/XInput pad detected before client start
-- [ ] PlayStation pad detected before client start
-- [ ] AYN Thor built-in controller detected through GameNative
-- [ ] Hotplug after client start
-- [ ] Controller 1 disconnect clears raw/logical state
-- [ ] Controller 2 is not promoted
-- [ ] Same Controller 1 reconnects
-- [ ] Held controls are not replayed after reconnect
-- [ ] Overlay displays canonical buttons, axes, triggers, and layer
-- [ ] Alt+Tab/focus loss cancels state
-- [ ] Loading and zoning cancel state
-- [ ] Keyboard input remains normal
-- [ ] Mouse input remains normal
-- [ ] `wxl-touch-input` coexists independent of load order
+- [ ] Win32 DLL loads on Windows 10 and Windows 11 with no `SDL3.dll`.
+- [ ] WoW starts normally with no gamepad; later hotplug activates Controller 1.
+- [ ] Xbox/XInput, PlayStation, and AYN Thor/GameNative devices use positional controls correctly.
+- [ ] A secondary pad produces no input and is not promoted after Controller 1 disconnects.
+- [ ] Same-identity reconnect resumes after a neutral snapshot without restarting WoW.
+- [ ] Disconnect, focus loss, zoning/logout, overlay open, disable, and shutdown release all states.
+- [ ] No controller or sink failure crashes WoW or spams the log.
 
-## Functional exact-build candidate
+## ConsolePortLK contract
 
-- [ ] Cardinal and diagonal movement, including opposite transition ordering
-- [ ] Stationary/moving RMB-style camera, pitch, deadzone, sensitivity, invert Y
-- [ ] Base, LT, RT, and LT+RT mappings and held-button layer ownership
-- [ ] ActionSlot, WoWBinding, KeyBinding, and Unassigned outputs
-- [ ] Main-bar paging, stance/form, vehicle and possess correctness
-- [ ] Profile persistence and addon capture
-- [ ] `WXLControllerInput` contract-v1 smoke commands return the documented values
-- [ ] `/reload` recreates the Lua table and observer
-- [ ] Chat, macro-name, mail, and other focused edit boxes suppress controller gameplay
-- [ ] Ordinary main-bar pages resolve the same slots the stock buttons display
-- [ ] Stance/form bonus pages resolve the same slots the stock buttons display
-- [ ] Vehicle and possess UI suppress ambiguous logical slots 1-12
-- [ ] Failed/invalid mutations leave the previous live mapping and file intact
+- [ ] With WoWpadX absent and ConsolePortLK unmodified, D-pad maps to F1-F4.
+- [ ] Back/Start map to F5/F6; LB/RB map to F7/F8.
+- [ ] North/East/South/West map to Numpad 4/F10/F11/F12.
+- [ ] LT, RT, and LT+RT remain held as Shift, Ctrl, and Shift+Ctrl around face-button presses.
+- [ ] Left stick produces all W/A/S/D cardinal and diagonal combinations with clean centre release.
+- [ ] H/V dominance helpers work with `SimpleRadial=false` and never appear when true.
+- [ ] Right stick rotates the camera smoothly in all directions, restores the cursor at centre, and has no centre drift.
+- [ ] `SwapSticks=true` swaps only axes; L3/R3 still hold left/right mouse buttons.
+- [ ] Touch tap, double tap, UI drag, and world drag never inherit mouselook or flip the camera.
+- [ ] Guide, Misc1, and each available paddle produce the documented Numpad key.
 
-Record the exact controller model, connection mode, Windows version, WarcraftXL commit, extension
-commit, DLL SHA-256, camera path, and observed result beside each completed run.
+## Coexistence and platforms
 
+- [ ] Physical keyboard/mouse input remains functional during and after controller-held overlap.
+- [ ] Controller input never reaches another application while WoW is unfocused.
+- [ ] Windowed, fullscreen-windowed, and supported fullscreen modes behave correctly.
+- [ ] AYN Thor/GameNative validation passes before platform-specific changes are considered.
+- [ ] Wine and Steam Deck/Proton validation passes or documents window-message limitations.

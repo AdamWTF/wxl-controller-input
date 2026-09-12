@@ -9,11 +9,11 @@
 namespace wxl::controller {
 namespace {
 float Axis(SDL_Gamepad *pad, SDL_GamepadAxis axis) {
-    const auto value = SDL_GetGamepadAxis(pad, axis);
-    return value < 0 ? static_cast<float>(value) / 32768.0F : static_cast<float>(value) / 32767.0F;
+    return static_cast<float>(SDL_GetGamepadAxis(pad, axis)) / 256.0F;
 }
 float Trigger(SDL_Gamepad *pad, SDL_GamepadAxis axis) {
-    return std::clamp(static_cast<float>(SDL_GetGamepadAxis(pad, axis)) / 32767.0F, 0.0F, 1.0F);
+    return std::clamp(static_cast<float>(SDL_GetGamepadAxis(pad, axis)) * 250.0F / 32767.0F,
+                      0.0F, 250.0F);
 }
 const char *Safe(const char *value) {
     return value ? value : "";
@@ -29,14 +29,23 @@ SdlControllerBackend::~SdlControllerBackend() {
 }
 
 bool SdlControllerBackend::Initialize() noexcept {
-    if (initialized_)
+    try {
+        if (initialized_)
+            return true;
+        if (!SDL_InitSubSystem(SDL_INIT_GAMEPAD)) {
+            error_ = Safe(SDL_GetError());
+            return false;
+        }
+        initialized_ = true;
+        const auto devices = Enumerate();
+        const auto selected = selector_.SelectInitial(devices);
+        if (selected && !Open(*selected))
+            selector_.Disconnect(selected->instanceId);
         return true;
-    if (!SDL_InitSubSystem(SDL_INIT_GAMEPAD))
+    } catch (...) {
+        Shutdown();
         return false;
-    initialized_ = true;
-    const auto devices = Enumerate();
-    const auto selected = selector_.SelectInitial(devices);
-    return !selected || Open(*selected);
+    }
 }
 
 DeviceInfo SdlControllerBackend::Describe(SDL_Gamepad *gamepad, std::uint32_t id) {
@@ -65,12 +74,15 @@ DeviceInfo SdlControllerBackend::Describe(SDL_Gamepad *gamepad, std::uint32_t id
     return info;
 }
 
-std::vector<DeviceInfo> SdlControllerBackend::Enumerate() noexcept {
+std::vector<DeviceInfo> SdlControllerBackend::Enumerate() {
     std::vector<DeviceInfo> result;
     int count = 0;
     SDL_JoystickID *ids = SDL_GetGamepads(&count);
-    if (!ids)
+    if (!ids) {
+        detectedCount_ = 0;
         return result;
+    }
+    detectedCount_ = count;
     for (int i = 0; i < count; ++i) {
         if (SDL_Gamepad *pad = SDL_OpenGamepad(ids[i])) {
             result.push_back(Describe(pad, static_cast<std::uint32_t>(ids[i])));
@@ -81,14 +93,16 @@ std::vector<DeviceInfo> SdlControllerBackend::Enumerate() noexcept {
     return result;
 }
 
-bool SdlControllerBackend::Open(const DeviceInfo &device) noexcept {
+bool SdlControllerBackend::Open(const DeviceInfo &device) {
     if (gamepad_)
         SDL_CloseGamepad(gamepad_);
     gamepad_ = SDL_OpenGamepad(static_cast<SDL_JoystickID>(device.instanceId));
+    if (!gamepad_)
+        error_ = Safe(SDL_GetError());
     return gamepad_ != nullptr;
 }
 
-void SdlControllerBackend::ProcessEvents() noexcept {
+void SdlControllerBackend::ProcessEvents() {
     SDL_Event event{};
     while (SDL_PollEvent(&event)) {
         if (event.type == SDL_EVENT_GAMEPAD_REMOVED) {
@@ -102,48 +116,68 @@ void SdlControllerBackend::ProcessEvents() noexcept {
                     disconnected_();
             }
         } else if (event.type == SDL_EVENT_GAMEPAD_ADDED && !selector_.Active()) {
-            const auto reconnected = selector_.Reconnect(Enumerate());
-            if (reconnected)
-                Open(*reconnected);
+            const auto devices = Enumerate();
+            const auto selected = selector_.HasIdentity() ? selector_.Reconnect(devices)
+                                                          : selector_.SelectInitial(devices);
+            if (selected && !Open(*selected))
+                selector_.Disconnect(selected->instanceId);
         }
     }
 }
 
 bool SdlControllerBackend::Poll(Snapshot &snapshot) noexcept {
-    if (!initialized_)
-        return false;
-    SDL_UpdateGamepads();
-    ProcessEvents();
-    if (!gamepad_)
-        return false;
-    if (!SDL_GamepadConnected(gamepad_)) {
-        const auto active = selector_.Active();
-        if (active)
-            selector_.Disconnect(active->instanceId);
-        SDL_CloseGamepad(gamepad_);
-        gamepad_ = nullptr;
+    try {
+        if (!initialized_)
+            return false;
+        SDL_UpdateGamepads();
+        ProcessEvents();
+        if (!gamepad_)
+            return false;
+        if (!SDL_GamepadConnected(gamepad_)) {
+            const auto active = selector_.Active();
+            if (active)
+                selector_.Disconnect(active->instanceId);
+            SDL_CloseGamepad(gamepad_);
+            gamepad_ = nullptr;
+            if (disconnected_)
+                disconnected_();
+            return false;
+        }
+        snapshot = {};
+        snapshot.leftX = Axis(gamepad_, SDL_GAMEPAD_AXIS_LEFTX);
+        snapshot.leftY = Axis(gamepad_, SDL_GAMEPAD_AXIS_LEFTY);
+        snapshot.rightX = Axis(gamepad_, SDL_GAMEPAD_AXIS_RIGHTX);
+        snapshot.rightY = Axis(gamepad_, SDL_GAMEPAD_AXIS_RIGHTY);
+        snapshot.leftTrigger = Trigger(gamepad_, SDL_GAMEPAD_AXIS_LEFT_TRIGGER);
+        snapshot.rightTrigger = Trigger(gamepad_, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER);
+        constexpr std::array<SDL_GamepadButton, static_cast<std::size_t>(Button::Count)> map{
+            SDL_GAMEPAD_BUTTON_SOUTH,         SDL_GAMEPAD_BUTTON_EAST,
+            SDL_GAMEPAD_BUTTON_WEST,          SDL_GAMEPAD_BUTTON_NORTH,
+            SDL_GAMEPAD_BUTTON_DPAD_UP,       SDL_GAMEPAD_BUTTON_DPAD_RIGHT,
+            SDL_GAMEPAD_BUTTON_DPAD_DOWN,     SDL_GAMEPAD_BUTTON_DPAD_LEFT,
+            SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER,
+            SDL_GAMEPAD_BUTTON_LEFT_STICK,    SDL_GAMEPAD_BUTTON_RIGHT_STICK,
+            SDL_GAMEPAD_BUTTON_BACK,          SDL_GAMEPAD_BUTTON_START,
+            SDL_GAMEPAD_BUTTON_GUIDE,         SDL_GAMEPAD_BUTTON_MISC1,
+            SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2,
+            SDL_GAMEPAD_BUTTON_LEFT_PADDLE1,  SDL_GAMEPAD_BUTTON_LEFT_PADDLE2};
+        for (std::size_t i = 0; i < map.size(); ++i)
+            snapshot.buttons[i] = SDL_GetGamepadButton(gamepad_, map[i]);
+        return true;
+    } catch (...) {
         if (disconnected_)
             disconnected_();
+        Shutdown();
         return false;
     }
-    snapshot = {};
-    snapshot.leftX = Axis(gamepad_, SDL_GAMEPAD_AXIS_LEFTX);
-    snapshot.leftY = Axis(gamepad_, SDL_GAMEPAD_AXIS_LEFTY);
-    snapshot.rightX = Axis(gamepad_, SDL_GAMEPAD_AXIS_RIGHTX);
-    snapshot.rightY = Axis(gamepad_, SDL_GAMEPAD_AXIS_RIGHTY);
-    snapshot.leftTrigger = Trigger(gamepad_, SDL_GAMEPAD_AXIS_LEFT_TRIGGER);
-    snapshot.rightTrigger = Trigger(gamepad_, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER);
-    constexpr std::array<SDL_GamepadButton, static_cast<std::size_t>(Button::Count)> map{
-        SDL_GAMEPAD_BUTTON_SOUTH,         SDL_GAMEPAD_BUTTON_EAST,
-        SDL_GAMEPAD_BUTTON_WEST,          SDL_GAMEPAD_BUTTON_NORTH,
-        SDL_GAMEPAD_BUTTON_DPAD_UP,       SDL_GAMEPAD_BUTTON_DPAD_RIGHT,
-        SDL_GAMEPAD_BUTTON_DPAD_DOWN,     SDL_GAMEPAD_BUTTON_DPAD_LEFT,
-        SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER,
-        SDL_GAMEPAD_BUTTON_LEFT_STICK,    SDL_GAMEPAD_BUTTON_RIGHT_STICK,
-        SDL_GAMEPAD_BUTTON_BACK,          SDL_GAMEPAD_BUTTON_START};
-    for (std::size_t i = 0; i < map.size(); ++i)
-        snapshot.buttons[i] = SDL_GetGamepadButton(gamepad_, map[i]);
-    return true;
+}
+
+const char *SdlControllerBackend::SdlVersion() noexcept {
+    static char version[32]{};
+    if (!version[0])
+        std::snprintf(version, sizeof(version), "%d.%d.%d", SDL_MAJOR_VERSION,
+                      SDL_MINOR_VERSION, SDL_MICRO_VERSION);
+    return version;
 }
 
 void SdlControllerBackend::Shutdown() noexcept {

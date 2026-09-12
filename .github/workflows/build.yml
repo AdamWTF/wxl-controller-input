@@ -65,11 +65,11 @@ jobs:
           $m = Get-Content ext/wxl.json -Raw | ConvertFrom-Json
           if ($m.manifest -ne 1) { throw 'manifest must be 1' }
           if ($m.extension.id -ne $env:EXT_NAME) { throw 'wrong extension id' }
-          if ($m.extension.version -ne '0.1.0') { throw 'wrong extension version' }
+          if ($m.extension.version -ne '0.2.2') { throw 'wrong extension version' }
           if ($m.extension.abi -ne '1.1') { throw 'wrong ABI' }
           if ($m.extension.entry -ne "$env:EXT_NAME.dll") { throw 'wrong entry DLL' }
-          if ($m.extension.hooks.Count -ne 1 -or $m.extension.hooks[0] -ne 'Lua.ValidateFunctionPointer') {
-            throw 'manifest must declare only the Lua callback validator hook'
+          if ($m.extension.hooks.Count -ne 0) {
+            throw 'ConsolePort compatibility backend must not declare hooks'
           }
 
       - name: Verify PE, exports, and static runtime
@@ -99,6 +99,6 @@ jobs:
       - name: Upload DLL
         uses: actions/upload-artifact@v4
         with:
-          name: wxl-controller-input-win32-pre-addon
+          name: wxl-controller-input-win32-consoleport
           path: dist/wxl-controller-input.dll
           if-no-files-found: error

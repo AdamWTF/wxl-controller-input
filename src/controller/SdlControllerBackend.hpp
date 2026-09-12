@@ -22,20 +22,26 @@ class SdlControllerBackend {
     bool Initialize() noexcept;
     bool Poll(Snapshot &snapshot) noexcept;
     void Shutdown() noexcept;
+    [[nodiscard]] bool Initialized() const noexcept { return initialized_; }
+    [[nodiscard]] int DetectedCount() const noexcept { return detectedCount_; }
+    [[nodiscard]] const std::string &Error() const noexcept { return error_; }
+    [[nodiscard]] static const char *SdlVersion() noexcept;
     [[nodiscard]] const std::optional<DeviceInfo> &Active() const noexcept {
         return selector_.Active();
     }
 
   private:
-    std::vector<DeviceInfo> Enumerate() noexcept;
-    bool Open(const DeviceInfo &device) noexcept;
-    void ProcessEvents() noexcept;
+    std::vector<DeviceInfo> Enumerate();
+    bool Open(const DeviceInfo &device);
+    void ProcessEvents();
     static DeviceInfo Describe(SDL_Gamepad *gamepad, std::uint32_t id);
 
     DisconnectHandler disconnected_;
     ControllerSelector selector_;
     SDL_Gamepad *gamepad_{};
     bool initialized_{};
+    int detectedCount_{};
+    std::string error_;
 };
 
 } // namespace wxl::controller

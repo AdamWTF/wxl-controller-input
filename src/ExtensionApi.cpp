@@ -1,12 +1,8 @@
 #include "ExtensionApi.hpp"
 
-#include "bridge/ControllerBridge.hpp"
-#include "bridge/ControllerInputApi.h"
-#include "bridge/LuaBridge.hpp"
 #include "config/Config.hpp"
 #include "diagnostics/DebugPanel.hpp"
 #include "engine/events/Event.hpp"
-#include "persistence/BindingStore.hpp"
 #include "runtime/FeatureController.hpp"
 #include "wxl/PluginApi.h"
 
@@ -24,7 +20,6 @@ void __cdecl OnUpdate(void *, const void *raw) {
     if (!g_controller || !raw)
         return;
     const auto &update = *static_cast<const events::UpdateArgs *>(raw);
-    LuaBridge::Tick();
     g_controller->OnUpdate(update.dt, update.timeMs);
 }
 void __cdecl OnWorldRenderEnd(void *, const void *) {
@@ -39,6 +34,8 @@ void __cdecl OnInput(void *, const void *raw) {
     if (!g_controller || !raw)
         return;
     const auto &input = *static_cast<const events::InputArgs *>(raw);
+    g_controller->OnWindowInput(input.message, input.wparam, input.lparam,
+                                static_cast<std::uintptr_t>(GetMessageExtraInfo()));
     if (input.message == WM_ACTIVATEAPP)
         g_controller->OnFocus(input.wparam != 0);
 }
@@ -59,11 +56,7 @@ std::filesystem::path ModuleDirectory() {
 
 bool ValidApi(const WXL_Api *api) noexcept {
     return api && api->apiVersion == WXL_API_VERSION && api->structSize == sizeof(WXL_Api) &&
-           api->Log && api->Subscribe && api->Emit && api->HookAttach && api->HookAttachByName &&
-           api->PublishInterface && api->GetInterface && api->UiAddPanel && api->UiIsOpen &&
-           api->UiText && api->UiSeparator && api->UiButton && api->UiCheckbox &&
-           api->UiSliderFloat && api->UiSliderInt && api->UiColorEdit && api->UiSameLine &&
-           api->UiCombo && api->UiCollapsingHeader && api->UiInputText;
+           api->Log && api->Subscribe && api->UiAddPanel && api->UiIsOpen && api->UiText;
 }
 } // namespace
 
@@ -73,30 +66,11 @@ bool LoadExtension(const WXL_Api *api) noexcept {
     try {
         const auto directory = ModuleDirectory();
         Config config = LoadConfig(directory / "wxl-controller-input.cfg");
-        BindingStore store;
-        const BindingLoadResult bindingResult =
-            store.Load(directory / "wxl-controller-input.bindings.json");
-        if (bindingResult == BindingLoadResult::Invalid ||
-            bindingResult == BindingLoadResult::UnsupportedVersion ||
-            bindingResult == BindingLoadResult::IoError) {
-            api->Log(WXL_LOG_WARN, "controller-input",
-                     "bindings file rejected; using built-in defaults (result=%u)",
-                     static_cast<unsigned>(bindingResult));
-        }
-        auto controller = std::make_unique<FeatureController>(
-            *api, config, std::move(store), directory / "wxl-controller-input.cfg",
-            directory / "wxl-controller-input.bindings.json");
+        auto controller = std::make_unique<FeatureController>(*api, config);
         if (!controller->Initialize())
             return false;
-        if (!LuaBridge::AttachValidator(*api))
-            api->Log(WXL_LOG_WARN, "controller-input",
-                     "Lua bridge unavailable; native controller runtime remains loaded");
         g_controller = std::move(controller);
         g_api = api;
-        ControllerBridge::Bind(g_controller.get());
-        LuaBridge::Bind(g_controller.get());
-        api->PublishInterface(WXL_CONTROLLER_INPUT_INTERFACE_NAME, WXL_CONTROLLER_INPUT_API_VERSION,
-                              ControllerBridge::Interface());
         api->Subscribe(static_cast<std::uint32_t>(events::Event::OnUpdate), &OnUpdate, nullptr);
         api->Subscribe(static_cast<std::uint32_t>(events::Event::OnWorldRenderEnd),
                        &OnWorldRenderEnd, nullptr);
@@ -104,7 +78,8 @@ bool LoadExtension(const WXL_Api *api) noexcept {
                        nullptr);
         api->Subscribe(static_cast<std::uint32_t>(events::Event::OnInput), &OnInput, nullptr);
         api->UiAddPanel("Controller Input Diagnostics", &DrawPanel, nullptr);
-        api->Log(WXL_LOG_INFO, "controller-input", "loaded v0.1.0 against API v1, client 12340");
+        api->Log(WXL_LOG_INFO, "controller-input",
+                 "loaded ConsolePort compatibility backend v0.2.2 against API v1, client 12340");
         return true;
     } catch (...) {
         api->Log(WXL_LOG_ERROR, "controller-input", "initialization failed safely");

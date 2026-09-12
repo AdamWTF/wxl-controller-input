@@ -2,13 +2,13 @@
   "manifest": 1,
   "extension": {
     "id": "wxl-controller-input",
-    "version": "0.1.0",
+    "version": "0.2.2",
     "abi": "1.1",
     "entry": "wxl-controller-input.dll",
     "assets": [],
     "requires": {},
     "conflicts": [],
-    "hooks": ["Lua.ValidateFunctionPointer"]
+    "hooks": []
   },
   "deploy": {
     "mode": "source"
